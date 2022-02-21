@@ -10,7 +10,7 @@ import os
 import re
 import sqlite3
 import sys
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import Counter
 from datetime import datetime
 
@@ -247,13 +247,13 @@ def receive_user_command():
         message = [
           "",
           "Type:",
-          "  '[s]uggest <criterion>' to let AI suggest a word",
-          "  '[u]pdate <word> <result>' to provide new information",
-          "  '[e]xit' to finish the session",
+          "  '[s]uggest <criterion>'     to let AI suggest a word",
+          "  '[u]pdate <word> <result>'  to provide new information",
+          "  '[e]xit'                    to finish the session",
           "", 
           "where",
-          "  <criterion> is either 'max_n', 'mean_n', or 'mean_entropy'",
-          "  <result> is digits of 0 (no match), 1 (partial match), 2 (exact match)",
+          "  <criterion>  is either 'max_n', 'mean_n', or 'mean_entropy'",
+          "  <result>     is a string of 0 (no match), 1 (partial match), and 2 (exact match)",
           "",
           "> "
         ]
@@ -305,13 +305,13 @@ def print_eval_result(x: list):
 
 
 def main():
-    parser = ArgumentParser(description="Wordle AI with SQLite backend")
+    parser = ArgumentParser(description="Wordle AI with SQLite backend", formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("--dbfile", type=str, default="wordle-ai.db", help="SQLite database file")
     parser.add_argument("--vocabfile", type=str, default="vocab.txt", help="Text file containing words")
     parser.add_argument("--default_criterion", type=str, default="mean_entropy",
                         choices=("max_n", "mean_n", "mean_entropy"), help="Criterion to suggest word")
     parser.add_argument("--num_suggest", type=int, default=20, help="Number of word suggestions")
-    parser.add_argument("--recompute", action="store_true", help="Force recomputing wordle response")
+    parser.add_argument("--recompute", action="store_true", help="Force recompute for the database setup")
     args = parser.parse_args()
 
     print("")
@@ -329,7 +329,7 @@ def main():
         if ans[0] == "s":
             criterion = args.default_criterion if len(ans) < 2 else ans[1]
             res = ai.evaluate(top_k=args.num_suggest, criterion=criterion)
-            print("* Top %d results ordered by %s" % (len(res), criterion))
+            print("* Top %d candidates ordered by %s" % (len(res), criterion))
             print_eval_result(res)
         elif ans[0] == "u":
             ai.update(ans[1], ans[2])
