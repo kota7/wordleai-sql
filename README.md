@@ -19,7 +19,8 @@ python wordleai.py
 
 Hello! This is Wordle AI with SQLite backend.
 
-12947 remaining candidates: ['yarco', 'knars', 'loamy', 'barps', 'dozed', 'yerks', 'reggo', 'rowth', 'spoom', 'rewin', '...']
+12947 remaining candidates: ['yarco', 'knars', 'loamy', 'barps', 'dozed', 'yerks',
+'reggo', 'rowth', 'spoom', 'rewin', '...']
 
 Type:
   '[s]uggest <criterion>'     to let AI suggest a word
@@ -58,7 +59,8 @@ End evaluating candidates (2022-02-21 20:59:22.748949, elapsed: 0:00:16.089228)
        lores           983         338.9         7.683             1
        serai           695         314.2         7.685             1
 --------------------------------------------------------------------
-12947 remaining candidates: ['yarco', 'knars', 'loamy', 'barps', 'dozed', 'yerks', 'reggo', 'rowth', 'spoom', 'rewin', '...']
+12947 remaining candidates: ['yarco', 'knars', 'loamy', 'barps', 'dozed', 'yerks',
+'reggo', 'rowth', 'spoom', 'rewin', '...']
 
 Type:
   '[s]uggest <criterion>'     to let AI suggest a word
@@ -70,7 +72,8 @@ where
   <result>     is a string of 0 (no match), 1 (partial match), and 2 (exact match)
 
 > u tares 10120
-38 remaining candidates: ['inter', 'noter', 'ether', 'voter', 'roted', 'citer', 'luter', 'enter', 'oxter', 'cruet', '...']
+38 remaining candidates: ['inter', 'noter', 'ether', 'voter', 'roted', 'citer',
+'luter', 'enter', 'oxter', 'cruet', '...']
 
 Type:
   '[s]uggest <criterion>'     to let AI suggest a word
@@ -109,7 +112,8 @@ End evaluating candidates (2022-02-21 20:59:32.386516, elapsed: 0:00:01.536804)
        point             8           5.1         2.040             0
        opium             8           5.2         2.042             0
 --------------------------------------------------------------------
-38 remaining candidates: ['inter', 'noter', 'ether', 'voter', 'roted', 'citer', 'luter', 'enter', 'oxter', 'cruet', '...']
+38 remaining candidates: ['inter', 'noter', 'ether', 'voter', 'roted', 'citer',
+'luter', 'enter', 'oxter', 'cruet', '...']
 
 Type:
   '[s]uggest <criterion>'     to let AI suggest a word
@@ -138,6 +142,10 @@ Note that if there are `n` candidate words with the equal probability, then prob
 Then, the entropy is given by `-sum(p_i log2(p_i)) = - n * (1/n) log2(1/n) = log2(n)`.
 Hence, the average of `log2(n)` would be the average entropy.
 
+"mean_entropy" is often used in practice and thus set as the default choice of the program.
+"max_n" can be seen as a pessimistic criterion since it reacts to the worst case.
+"mean_n" can seem an intutive criterion but does not work as well as "mean_entropy" perhaps due to the skewed distribution.
+
 ## Using a custom answer set
 
 - By default, the program uses "vocab.txt" as the word candidate list, which perhaps is compatible with [New York Times version](https://www.nytimes.com/games/wordle/index.html)
@@ -153,4 +161,4 @@ python wordleai.py --dbfile custom-wordle.db --vocabfile my-vocab.txt
 
 ## Other options
 
-See `python wordle-ai.py -h` for other options, which should be self-explanatory.
+See `python wordle-ai.py -h` for other options, which should mostly be self-explanatory.
