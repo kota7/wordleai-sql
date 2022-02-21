@@ -5,6 +5,7 @@
 Wordle AI with SQLite backend.
 """
 
+import itertools
 import math
 import os
 import re
@@ -13,6 +14,7 @@ import sys
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import Counter
 from datetime import datetime
+from tqdm import tqdm
 
 
 def wordle_response(input_word: str, answer_word: str)-> int:
@@ -71,26 +73,33 @@ def create_database(dbfile: str, words: list):
         conn.commit()
 
 def compute_all_responses(dbfile: str):
-    # ToDo. This part take very long time (about 20 minutes)
-    # Consider replacing with calculating the result using python
-    # with progress bar to help visualize the waiting time.
-    # Also, consider cythonize this part to enhance the computation.
+    # ToDo. This part take very long time (about 20-30 minutes)
+    #       Maybe cythonize this part to enhance the computation.
+    def generate_responses(words):
+        total = len(words)**2
+        nchar = len(str(total))
+        fmt = "\r%{nchar}d / %{nchar}d %5.1f%% |%-50s| %s remaining".format(nchar=nchar)
+        t1 = datetime.now()
+        for input_word, answer_word in tqdm(itertools.product(words, words), total=total):
+            # pcent = 100.0 * (i+1) / total
+            # bar = "#" * int(pcent / 2)
+            # remain = str((datetime.now() - t1) / i * (total - i)) if i > 0 else "???"
+            # remain = remain[:10]
+            # print(fmt % (i+1, total, pcent, bar, remain), end="", file=sys.stderr)
+
+            response = wordle_response(input_word, answer_word)
+            yield (input_word, answer_word, response)
     with sqlite3.connect(dbfile) as conn:
-        conn.create_function("wordle_response", 2, wordle_response)
         c = conn.cursor()
-        
         c.execute("DROP TABLE IF EXISTS responses")        
-        q = """
-        SELECT
-          a.word AS input_word,
-          b.word AS answer_word,
-          wordle_response(a.word, b.word) AS response
-        FROM
-          words AS a, words AS b
-        """
+        c.execute("CREATE TABLE responses (input_word TEXT, answer_word TEXT, response INT)")
+        c.execute("SELECT word FROM words")
+        words = [row[0] for row in c]
         t1 = datetime.now()
         print("Start computing responses (%s)" % t1, file=sys.stderr)
-        c.execute("CREATE TABLE responses AS {}".format(q))
+        q = "INSERT INTO responses VALUES (?,?,?)"
+        params = generate_responses(words)
+        c.executemany(q, params)
         t2 = datetime.now()
         print("End computing responses (%s, elapsed: %s)" % (t2, t2-t1), file=sys.stderr)
         
@@ -102,6 +111,34 @@ def compute_all_responses(dbfile: str):
         print("End creating index (%s, elapsed: %s)" % (t2, t2-t1), file=sys.stderr)
         conn.commit()
 
+    # with sqlite3.connect(dbfile) as conn:
+    #     conn.create_function("wordle_response", 2, wordle_response)
+    #     c = conn.cursor()
+        
+    #     c.execute("DROP TABLE IF EXISTS responses")        
+    #     q = """
+    #     SELECT
+    #       a.word AS input_word,
+    #       b.word AS answer_word,
+    #       wordle_response(a.word, b.word) AS response
+    #     FROM
+    #       words AS a, words AS b
+    #     """
+    #     t1 = datetime.now()
+    #     print("Start computing responses (%s)" % t1, file=sys.stderr)
+    #     c.execute("CREATE TABLE responses AS {}".format(q))
+    #     t2 = datetime.now()
+    #     print("End computing responses (%s, elapsed: %s)" % (t2, t2-t1), file=sys.stderr)
+        
+    #     t1 = datetime.now()
+    #     print("Start creating index (%s)" % t1, file=sys.stderr)
+    #     c.execute("CREATE INDEX responses_idx ON responses (input_word, response)")
+    #     c.execute("CREATE INDEX responses_idx2 ON responses (answer_word)")
+    #     t2 = datetime.now()
+    #     print("End creating index (%s, elapsed: %s)" % (t2, t2-t1), file=sys.stderr)
+    #     conn.commit()
+
+# ToDo. make candidate table session specific.
 def init_candidates(dbfile: str):
     with sqlite3.connect(dbfile) as conn:
         c = conn.cursor()
@@ -198,7 +235,7 @@ def read_vocabfile(filepath: str):
         words = [w for w in words if len(w) > 0]
     return words
 
-class WordleSQLiteAI:
+class WordleAISQLite:
     def __init__(self, dbfile: str, words: list or str=None, recompute: bool=False):
         self.dbfile = dbfile
         if not os.path.isfile(dbfile) or recompute:
@@ -206,10 +243,10 @@ class WordleSQLiteAI:
                 words = read_vocabfile(words)
             # words must be unique
             words = list(set(words))
-            print("Start setting up the database, this would take a while (typically around 20 minutes)")
+            print("Start setting up the database, this would take a while (typically around 30 minutes)")
             create_database(dbfile, words)
             compute_all_responses(dbfile)
-            print("End setting up the database, this would take a while (typically around 20 minutes)")
+            print("End setting up the database")
 
     def initialize(self):
         init_candidates(self.dbfile)
@@ -318,7 +355,7 @@ def main():
     print("Hello! This is Wordle AI with SQLite backend.")
     print("")
 
-    ai = WordleSQLiteAI(args.dbfile, words=args.vocabfile, recompute=args.recompute)
+    ai = WordleAISQLite(args.dbfile, words=args.vocabfile, recompute=args.recompute)
     ai.initialize()
 
     while True:
