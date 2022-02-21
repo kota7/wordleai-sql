@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+"""
+Wordle AI with SQLite backend.
+"""
+
 import math
 import os
 import re
@@ -98,14 +102,14 @@ def compute_all_responses(dbfile: str):
         print("End creating index (%s, elapsed: %s)" % (t2, t2-t1), file=sys.stderr)
         conn.commit()
 
-def init_candidates(dbfile):
+def init_candidates(dbfile: str):
     with sqlite3.connect(dbfile) as conn:
         c = conn.cursor()
         c.execute("DROP TABLE IF EXISTS candidates")
         c.execute("CREATE TABLE candidates AS SELECT word FROM words")
         conn.commit()
 
-def evaluate_candidates(dbfile):
+def evaluate_candidates(dbfile: str):
     with sqlite3.connect(dbfile) as conn:
         conn.create_function("log2", 1, math.log2)
         c = conn.cursor()
@@ -282,7 +286,7 @@ def receive_user_command():
         elif ans[0] == "e":
             return ["e"]
 
-def print_eval_result(x):
+def print_eval_result(x: list):
     # evaluation result is a list of dict, with the same keys repeated
     if len(x) == 0:
         print("No data.")
@@ -332,6 +336,7 @@ def main():
         elif ans[0] == "e":
             break
 
+    print()
     print("Thank you!")
 
 
