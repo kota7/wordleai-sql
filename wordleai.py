@@ -284,7 +284,7 @@ def receive_user_command():
         message = [
           "",
           "Type:",
-          "  '[s]uggest <criterion>'     to let AI suggest a word",
+          "  '[s]uggest <criterion>'     to let AI suggest a word (<criterion> is optional)",
           "  '[u]pdate <word> <result>'  to provide new information",
           "  '[e]xit'                    to finish the session",
           "", 
