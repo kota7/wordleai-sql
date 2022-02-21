@@ -142,6 +142,10 @@ Note that if there are `n` candidate words with the equal probability, then prob
 Then, the entropy is given by `-sum(p_i log2(p_i)) = - n * (1/n) log2(1/n) = log2(n)`.
 Hence, the average of `log2(n)` would be the average entropy.
 
+"mean_entropy" is often used in practice and thus set as the default choice of the program.
+"max_n" can be seen as a pessimistic criterion since it reacts to the worst case.
+"mean_n" can seem an intutive criterion but does not work as well as "mean_entropy" perhaps due to the skewed distribution.
+
 ## Using a custom answer set
 
 - By default, the program uses "vocab.txt" as the word candidate list, which perhaps is compatible with [New York Times version](https://www.nytimes.com/games/wordle/index.html)
