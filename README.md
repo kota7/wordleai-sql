@@ -161,4 +161,4 @@ python wordleai.py --dbfile custom-wordle.db --vocabfile my-vocab.txt
 
 ## Other options
 
-See `python wordle-ai.py -h` for other options, which should be self-explanatory.
+See `python wordle-ai.py -h` for other options, which should mostly be self-explanatory.
