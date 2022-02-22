@@ -19,29 +19,34 @@ from datetime import datetime
 from tqdm import tqdm
 from tempfile import TemporaryDirectory
 
-
-def wordle_response(input_word: str, answer_word: str)-> int:
-    assert len(input_word) == len(answer_word), "Word length mismatch ([] vs {})".format(len(input_word), len(answer_word))
-    exactmatch = [a==b for a, b in zip(input_word, answer_word)]
-    lettercount = Counter(b for b, m in zip(answer_word, exactmatch) if not m)
-    partialmatch = [False] * len(input_word)
-    for i, (a, m) in enumerate(zip(input_word, exactmatch)):
-        if m: continue
-        if lettercount.get(a, 0) > 0:
-            lettercount[a] -= 1
-            partialmatch[i] = True
-    # Define the response as an integer of base 3
-    #   with 2: exact, 1: partial, 0: none
-    # To reduce the variable size, we store the integer of base 10
-    out = 0
-    power = 1
-    for x, y in zip(reversed(exactmatch), reversed(partialmatch)):
-        if x:
-            out += power*2
-        elif y:
-            out += power
-        power *= 3
-    return out
+try:
+    import pyximport
+    pyximport.install()
+    from helper import wordle_response_cython as wordle_response
+except Exception as e:
+    print("Cython enhancement is not available (due to '%s')" % e, file=sys.stderr)    
+    def wordle_response(input_word: str, answer_word: str)-> int:
+        assert len(input_word) == len(answer_word), "Word length mismatch ([] vs {})".format(len(input_word), len(answer_word))
+        exactmatch = [a==b for a, b in zip(input_word, answer_word)]
+        lettercount = Counter(b for b, m in zip(answer_word, exactmatch) if not m)
+        partialmatch = [False] * len(input_word)
+        for i, (a, m) in enumerate(zip(input_word, exactmatch)):
+            if m: continue
+            if lettercount.get(a, 0) > 0:
+                lettercount[a] -= 1
+                partialmatch[i] = True
+        # Define the response as an integer of base 3
+        #   with 2: exact, 1: partial, 0: none
+        # To reduce the variable size, we store the integer of base 10
+        out = 0
+        power = 1
+        for x, y in zip(reversed(exactmatch), reversed(partialmatch)):
+            if x:
+                out += power*2
+            elif y:
+                out += power
+            power *= 3
+        return out
 
 def decode_response(number: int)-> int:
     # convert to human-friendly integer 
@@ -76,7 +81,7 @@ def create_database(dbfile: str, words: list):
         conn.commit()
 
 
-def generate_responses_python_only(words: list):
+def generate_responses_python(words: list):
     total = len(words)**2
     nchar = len(str(total))
     fmt = "\r%{nchar}d / %{nchar}d %5.1f%% |%-50s| %s remaining".format(nchar=nchar)
@@ -108,7 +113,7 @@ def _make_enhanced_response_generator(compiler: str=None, recompile: bool=False)
         try:
             subprocess.run([compiler, "-Wall", "-Werror", "-O3", "-o", execfile, scriptfile])
         except Exception as e:
-            print("C++ compile failed, so C++ enhancement is not available", file=sys.stderr)
+            print("C++ compile failed (%s), so C++ enhancement is not available" % e, file=sys.stderr)
             return None
 
     def generate_responses_cpp(words: list):
@@ -137,14 +142,14 @@ def _make_enhanced_response_generator(compiler: str=None, recompile: bool=False)
 
 
 def compute_all_responses(dbfile: str, usecpp: bool=True, cppcompiler: str=None, recompile: bool=False):
+    generator = None
     if usecpp:
         generator = _make_enhanced_response_generator(compiler=cppcompiler, recompile=recompile)
         if generator is None:
             print("C++ enhancement is not available", file=sys.stderr)
-            generator = generate_responses_python_only
-    else:
-        generator = generate_responses_python_only
-
+    if generator is None:
+        generator = generate_responses_python
+        
     with sqlite3.connect(dbfile) as conn:
         c = conn.cursor()
         c.execute("PRAGMA journal_mode=OFF")  # disable rollback to save time
