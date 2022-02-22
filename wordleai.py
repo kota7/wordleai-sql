@@ -11,6 +11,7 @@ import os
 import re
 import sqlite3
 import sys
+import time
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import Counter
 from datetime import datetime
@@ -138,24 +139,55 @@ def compute_all_responses(dbfile: str):
     #     print("End creating index (%s, elapsed: %s)" % (t2, t2-t1), file=sys.stderr)
     #     conn.commit()
 
-# ToDo. make candidate table session specific.
-def init_candidates(dbfile: str):
+def init_candidates(dbfile: str, tablename: str="candidates"):
     with sqlite3.connect(dbfile) as conn:
         c = conn.cursor()
-        c.execute("DROP TABLE IF EXISTS candidates")
-        c.execute("CREATE TABLE candidates AS SELECT word FROM words")
+        c.execute('DROP TABLE IF EXISTS "{}"'.format(tablename))
+        c.execute('CREATE TABLE "{}" AS SELECT word FROM words'.format(tablename))
         conn.commit()
 
-def evaluate_candidates(dbfile: str):
+def remove_table(dbfile: str, tablename: str):
+    with sqlite3.connect(dbfile) as conn:
+        c = conn.cursor()
+        c.execute('DROP TABLE IF EXISTS "{}"'.format(tablename))
+        conn.commit()
+
+def table_exists(dbfile: str, tablename: str):
+    with sqlite3.connect(dbfile) as conn:
+        c = conn.cursor()
+        c.execute('SELECT 1 FROM sqlite_master WHERE name LIKE ?', (tablename,))
+        res = c.fetchall()
+    if len(res) > 1:
+        print("There are %d tables named '%s'" % (len(res), tablename), file=sys.stderr)
+    return (len(res) > 0)
+
+def unused_candidate_name(dbfile: str)-> str:
+    tables = list_candidate_tables(dbfile)
+    i = 0
+    while True:
+        newtable = "candidates_{}".format(i)
+        if newtable not in tables:
+            return newtable
+        i += 1
+
+def list_candidate_tables(dbfile: str)-> list:
+    with sqlite3.connect(dbfile) as conn:
+        c = conn.cursor()
+        c.execute("SELECT name FROM sqlite_master WHERE name LIKE 'candidates_%'")
+        tables = [row[0].lower() for row in c]
+    return tables
+    
+
+def evaluate_candidates(dbfile: str, tablename: str="candidates"):
     with sqlite3.connect(dbfile) as conn:
         conn.create_function("log2", 1, math.log2)
         c = conn.cursor()
 
-        c.execute("SELECT count(*) FROM candidates")
+        c.execute('SELECT count(*) FROM "{}"'.format(tablename))
         n_candidates = c.fetchone()[0]
         c.execute("SELECT count(*) FROM words")
         n_words = c.fetchone()[0]
-        answerfilter = "" if n_words == n_candidates else "WHERE answer_word IN (SELECT word FROM candidates)"
+        answerfilter = "" if n_words == n_candidates else 'WHERE answer_word IN (SELECT word FROM "{}")'.format(tablename)
 
         q = """
         with tmp AS (
@@ -186,9 +218,9 @@ def evaluate_candidates(dbfile: str):
           coalesce(c.is_candidate, 0) AS is_candidate
         FROM
           tmp2 AS t
-        LEFT JOIN (SELECT word, 1 AS is_candidate FROM candidates) AS c
+        LEFT JOIN (SELECT word, 1 AS is_candidate FROM "{candidatetable}") AS c
           ON t.input_word = c.word
-        """.format(answerfilter=answerfilter)
+        """.format(answerfilter=answerfilter, candidatetable=tablename)
         t1 = datetime.now()
         print("Start evaluating candidates (%s)" % t1, file=sys.stderr)
         c.execute(q)
@@ -198,11 +230,11 @@ def evaluate_candidates(dbfile: str):
         out = [{name: value for name, value in zip(names, row)} for row in c]
     return out
 
-def update_candidate(dbfile: str, input_word: str, response: str):    
+def update_candidate(dbfile: str, input_word: str, response: str, tablename: str="candidates"):    
     encoded = encode_response(int(response))
     with sqlite3.connect(dbfile) as conn:
         q = """
-        DELETE FROM candidates WHERE word NOT IN (
+        DELETE FROM "{}" WHERE word NOT IN (
           SELECT
             answer_word
           FROM
@@ -210,18 +242,18 @@ def update_candidate(dbfile: str, input_word: str, response: str):
           WHERE
             input_word = ? AND response = ?
         )
-        """
+        """.format(tablename)
         param = (input_word, encoded)
         c = conn.cursor()        
         c.execute(q, param)
         conn.commit()
 
-def get_candidates(dbfile: str, n: int=30):
+def get_candidates(dbfile: str, n: int=30, tablename: str="candidates"):
     with sqlite3.connect(dbfile) as conn:
         c = conn.cursor()
-        c.execute("SELECT count(*) FROM candidates")
+        c.execute('SELECT count(*) FROM "{}"'.format(tablename))
         count = c.fetchone()[0]
-        c.execute("SELECT word FROM candidates LIMIT {}".format(n))
+        c.execute('SELECT word FROM "{}" LIMIT {}'.format(tablename, n))
         candidates = [row[0] for row in c.fetchall()]
 
     return count, candidates
@@ -238,6 +270,7 @@ def read_vocabfile(filepath: str):
 class WordleAISQLite:
     def __init__(self, dbfile: str, words: list or str=None, recompute: bool=False):
         self.dbfile = dbfile
+
         if not os.path.isfile(dbfile) or recompute:
             if type(words) == str:
                 words = read_vocabfile(words)
@@ -248,11 +281,17 @@ class WordleAISQLite:
             compute_all_responses(dbfile)
             print("End setting up the database")
 
+    def __del__(self):
+        remove_table(self.dbfile, self.candidatetable)
+
     def initialize(self):
-        init_candidates(self.dbfile)
+        candidatetable = unused_candidate_name(self.dbfile)
+        print("Candidate table for this session: '%s'" % candidatetable, file=sys.stderr)
+        self.candidatetable = candidatetable
+        init_candidates(self.dbfile, self.candidatetable)
 
     def evaluate(self, top_k: int=20, criterion: str="mean_entropy"):
-        res = evaluate_candidates(self.dbfile)
+        res = evaluate_candidates(self.dbfile, tablename=self.candidatetable)
         # sort by the given criterion
         # if that criterion is equal, then we prioritize candidate words
         res.sort(key=lambda row: (row[criterion], -row["is_candidate"]))
@@ -260,11 +299,11 @@ class WordleAISQLite:
         return res[:top_k]
 
     def update(self, input_word: str, result: str or int):
-        update_candidate(self.dbfile, input_word, result)
+        update_candidate(self.dbfile, input_word, result, tablename=self.candidatetable)
 
     def remaining_candidates(self, n: int=10)-> bool:
         # return True if zero or one candidate left
-        count, candidates = get_candidates(self.dbfile, n=n)
+        count, candidates = get_candidates(self.dbfile, n=n, tablename=self.candidatetable)
         if count > n:
             candidates.append("...")
 
@@ -349,11 +388,17 @@ def main():
                         choices=("max_n", "mean_n", "mean_entropy"), help="Criterion to suggest word")
     parser.add_argument("--num_suggest", type=int, default=20, help="Number of word suggestions")
     parser.add_argument("--recompute", action="store_true", help="Force recompute for the database setup")
+    parser.add_argument("--clean_candidate_tables", action="store_true", help="Remove existing candidate tables before session")
     args = parser.parse_args()
 
     print("")
     print("Hello! This is Wordle AI with SQLite backend.")
     print("")
+
+    if args.clean_candidate_tables:
+        if os.path.isfile(args.dbfile):
+            for table in list_candidate_tables():
+                remove_table(args.dbfile, table)
 
     ai = WordleAISQLite(args.dbfile, words=args.vocabfile, recompute=args.recompute)
     ai.initialize()
