@@ -423,7 +423,7 @@ def print_eval_result(x: list):
 def main():
     parser = ArgumentParser(description="Wordle AI with SQLite backend", formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("--dbfile", type=str, default="wordle-ai.db", help="SQLite database file")
-    parser.add_argument("--vocabfile", type=str, default="vocab.txt", help="Text file containing words")
+    parser.add_argument("--vocabfile", type=str, help="Text file containing words")
     parser.add_argument("--default_criterion", type=str, default="mean_entropy",
                         choices=("max_n", "mean_n", "mean_entropy"), help="Criterion to suggest word")
     parser.add_argument("--num_suggest", type=int, default=20, help="Number of word suggestions")
@@ -443,7 +443,9 @@ def main():
             for table in list_candidate_tables():
                 remove_table(args.dbfile, table)
 
-    ai = WordleAISQLite(args.dbfile, words=args.vocabfile, recompute=args.recompute,
+    vocabfile = os.path.join(os.path.dirname(__file__), "vocab.txt") if args.vocabfile is None else args.vocabfile
+    print("Default vocab file (%s) is used" % vocabfile)
+    ai = WordleAISQLite(args.dbfile, words=vocabfile, recompute=args.recompute,
                         usecpp=(not args.nocpp), cppcompiler=args.cppcompiler, recompile_cpp=args.recompile_cpp)
     ai.initialize()
 
