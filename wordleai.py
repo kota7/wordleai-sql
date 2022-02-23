@@ -5,6 +5,7 @@
 Wordle AI with SQLite backend.
 """
 
+import hashlib
 import itertools
 import math
 import os
@@ -93,11 +94,29 @@ def generate_responses_python_only(words: list):
         response = wordle_response(input_word, answer_word)
         yield (input_word, answer_word, response)
 
-def _make_enhanced_response_generator(compiler: str=None, recompile: bool=False):
+def _make_enhanced_response_generator(compiler: str=None, force_recompile: bool=False):
     scriptfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "wordle-all-pairs.cpp"))
-    execfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "wordle-all-pairs.o"))
-    if os.path.isfile(execfile) and not recompile:
-        print("Compiled file already exists: '%s'" % execfile, file=sys.stderr)
+    #execfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "wordle-all-pairs.o"))
+    execfile = os.path.expanduser("~/.worldaisql/wordle-all-pairs.o")
+    md5file = os.path.expanduser("~/.worldaisql/wordle-all-pairs.cpp.md5sum")
+    # we keep the md5 info of the source file to detect any changes
+    # and compile the file only if the hash is not changed
+    os.makedirs(os.path.dirname(execfile), exist_ok=True)
+
+    # compare the hash record
+    if os.path.isfile(md5file):
+        with open(md5file) as f:
+            hash_prev = f.read()
+    else:
+        hash_prev = None
+    h = hashlib.md5()
+    with open(scriptfile, "rb") as f:
+        h.update(f.read())
+    hash_this = h.hexdigest()
+    script_updated = (hash_this != hash_prev)
+    
+    if os.path.isfile(execfile) and (not script_updated) and (not force_recompile):
+        print("Compiled file ('%s') already exists and source has no update" % execfile, file=sys.stderr)
     else:
         # compile cpp script
         if compiler is None:
@@ -116,6 +135,8 @@ def _make_enhanced_response_generator(compiler: str=None, recompile: bool=False)
         print("Compiling C++ script", file=sys.stderr)
         try:
             subprocess.run([compiler, "-Wall", "-Werror", "-O3", "-o", execfile, scriptfile])
+            with open(md5file, "w") as f:
+                f.write(hash_this)
         except Exception as e:
             print("C++ compile failed, so C++ enhancement is not available", file=sys.stderr)
             return None
@@ -144,7 +165,7 @@ def _make_enhanced_response_generator(compiler: str=None, recompile: bool=False)
     return generate_responses_cpp
 
 
-def compute_all_responses(dbfile: str, usecpp: bool=True, cppcompiler: str=None, recompile: bool=False):
+def compute_all_responses(dbfile: str, usecpp: bool=True, cppcompiler: str=None, force_recompile: bool=False):
     with sqlite3.connect(dbfile) as conn:
         c = conn.cursor()
         c.execute("SELECT word FROM words")
@@ -167,7 +188,7 @@ def compute_all_responses(dbfile: str, usecpp: bool=True, cppcompiler: str=None,
         if not all_ascii_no_space:
             print("C++ enhancement is not available for non-ascii letters")
         else:
-            generator = _make_enhanced_response_generator(compiler=cppcompiler, recompile=recompile)
+            generator = _make_enhanced_response_generator(compiler=cppcompiler, force_recompile=force_recompile)
             if generator is None:
                 print("C++ enhancement is not available", file=sys.stderr)
                 generator = generate_responses_python_only
@@ -330,7 +351,7 @@ def read_vocabfile(filepath: str):
 
 class WordleAISQLite:
     def __init__(self, dbfile: str, words: list or str=None, recompute: bool=False,
-                 usecpp: bool=True, cppcompiler: str=None, recompile_cpp: bool=False,
+                 usecpp: bool=True, cppcompiler: str=None, force_recompile_cpp: bool=False,
                  ai_level: float=6, candidate_weight: float=0.3, decision_metric: str="mean_entropy"):
         self.dbfile = dbfile
         # parameters used for making a choice
@@ -349,7 +370,7 @@ class WordleAISQLite:
             words = list(set(words))
             with _timereport("database setup, this would take a while"):
                 create_database(dbfile, words)
-                compute_all_responses(dbfile, usecpp=usecpp, cppcompiler=cppcompiler, recompile=recompile_cpp)
+                compute_all_responses(dbfile, usecpp=usecpp, cppcompiler=cppcompiler, force_recompile=force_recompile_cpp)
 
     def __del__(self):
         if hasattr(self, "candidatetable"):
@@ -642,7 +663,7 @@ def main():
     parser.add_argument("--num_suggest", type=int, default=20, help="Number of word suggestions")
     parser.add_argument("--recompute", action="store_true", help="Force recomputation of the database setup")
     parser.add_argument("--nocpp", action="store_true", help="Do not use C++ enhancement for precomputation")
-    parser.add_argument("--recompile_cpp", action="store_true", help="Force recompiling the C++ script")
+    parser.add_argument("--force_recompile_cpp", action="store_true", help="Force recompiling the C++ script")
     parser.add_argument("--cppcompiler", type=str, help="C++ compiler command (if not given, the program search 'g++' or 'clang++')")
     parser.add_argument("--clean_candidate_tables", action="store_true", help="Remove existing candidate tables before the session")
     parser.add_argument("--play", action="store_true", help="Play your own game")
@@ -681,7 +702,7 @@ def main():
         vocabfile = os.path.relpath(vocabfile, os.getcwd())
         print("Default vocab file (%s) is used" % vocabfile)
         ai = WordleAISQLite(args.dbfile, words=vocabfile, recompute=args.recompute,
-                            usecpp=(not args.nocpp), cppcompiler=args.cppcompiler, recompile_cpp=args.recompile_cpp,
+                            usecpp=(not args.nocpp), cppcompiler=args.cppcompiler, force_recompile_cpp=args.force_recompile_cpp,
                             ai_level=args.ai_level, candidate_weight=args.candidate_weight, decision_metric=args.decision_metric)
         while True:
             challenge(ai)
@@ -700,7 +721,7 @@ def main():
     vocabfile = os.path.relpath(vocabfile, os.getcwd())
     print("Default vocab file (%s) is used" % vocabfile)
     ai = WordleAISQLite(args.dbfile, words=vocabfile, recompute=args.recompute,
-                        usecpp=(not args.nocpp), cppcompiler=args.cppcompiler, recompile_cpp=args.recompile_cpp)
+                        usecpp=(not args.nocpp), cppcompiler=args.cppcompiler, force_recompile_cpp=args.force_recompile_cpp)
     while True:
         interactive(ai, num_suggest=args.num_suggest, default_criterion=args.default_criterion)
 
