@@ -376,8 +376,8 @@ class WordleAISQLite:
         self.decision_noise = noise
         self.candidate_weight = candidate_weight
         self.decision_metric = decision_metric
-
-        if not os.path.isfile(dbfile) or recompute:
+        
+        if not os.path.isfile(dbfile) or recompute or (words is not None):
             if words is None:
                 # no vocab info is given --> use default file
                 vocabfile =  _package_data_file("wordle-vocab.txt")
