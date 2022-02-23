@@ -1,11 +1,12 @@
 WORDLE AI with SQL Backend
 ==========================
+[![](https://badge.fury.io/py/wordleaisql.svg)](https://badge.fury.io/py/wordleaisql)
 
 ## Usage
 
 ```shell
 # Install the library with pip
-pip install -U wordleaisql
+pip install wordleaisql
 # Then run the executable that comes with the library
 wordleai-sql
 
@@ -157,6 +158,7 @@ Hence, the average of `log2(n)` would be the average entropy.
 - You may give a different list with `--vocabfile` option. You should also specify `--dbfile` option other than the default ("wordle-ai.db") because the database setup would be overwritten.
 - The file should contain words of the same length, separated by the line break ("\n").
 - Although not tested, the program would work with words containing multibyte characters (with utf8 encoding) or digits.
+- See `vocab-examples/` folder for examples.
 
 ```shell
 # Example
