@@ -15,6 +15,7 @@ import sys
 import time
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import Counter
+from contextlib import contextmanager
 from datetime import datetime
 from tqdm import tqdm
 from tempfile import TemporaryDirectory
@@ -65,6 +66,14 @@ def encode_response(number: int)-> int:
         power *= 3
     return out
 
+@contextmanager
+def _timereport(taskname: str="task", datetimefmt: str="%Y-%m-%d %H:%M:%S"):
+    t1 = datetime.now()
+    print("Start %s (%s)" % (taskname, t1.strftime(datetimefmt)), file=sys.stderr)
+    yield
+    t2 = datetime.now()
+    print("End %s (%s, elapsed: %s)" % (taskname, t2.strftime(datetimefmt), t2-t1), file=sys.stderr)
+
 
 def create_database(dbfile: str, words: list):
     with sqlite3.connect(dbfile) as conn:
@@ -74,7 +83,6 @@ def create_database(dbfile: str, words: list):
         params = [(w,) for w in words]
         c.executemany("INSERT INTO words VALUES (?)", params)                
         conn.commit()
-
 
 def generate_responses_python_only(words: list):
     total = len(words)**2
@@ -88,14 +96,14 @@ def _make_enhanced_response_generator(compiler: str=None, recompile: bool=False)
     scriptfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "wordle-all-pairs.cpp"))
     execfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "wordle-all-pairs.o"))
     if os.path.isfile(execfile) and not recompile:
-        print("Compiled file already exists: '%s'" % execfile)
+        print("Compiled file already exists: '%s'" % execfile, file=sys.stderr)
     else:
-        # compile spp script
+        # compile cpp script
         if compiler is None:
             # find a c++ compiler
             for c in ("g++", "clang++"):
                 try:
-                    subprocess.run([c, "--help"])
+                    subprocess.run([c, "--help"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     compiler = c
                     print("C++ compiler detected: '%s'" % compiler, file=sys.stderr)
                     break
@@ -120,19 +128,18 @@ def _make_enhanced_response_generator(compiler: str=None, recompile: bool=False)
                 f.write(" ".join(words))
 
             # run c++ script to save the results as a csv file
-            outfile = os.path.join(tmpdir, "outfile.csv")
+            outfile = os.path.join(tmpdir, "outfile.txt")
+            #outfile = "responses.txt"  # for temporary check for the output table
             with open(infile) as f, open(outfile, "w") as g:
-                t1 = datetime.now()
-                print("Start precomputing all wordle results (%s)" % t1, file=sys.stderr)
-                subprocess.run([execfile], stdin=f, stdout=g)
-                t2 = datetime.now()
-                print("End precomputing all wordle results (%s, elapsed: %s)" % (t1, t2-t1), file=sys.stderr)
+                with _timereport("precomputing all wordle results"):
+                    subprocess.run([execfile], stdin=f, stdout=g)
             
             # generate the outcomes
             with open(outfile) as f:
                 total = len(words)**2
                 for line in tqdm(f, total=total):
-                    yield line.strip().split(",")
+                    yield line.strip().split(" ")
+
     return generate_responses_cpp
 
 
@@ -148,30 +155,22 @@ def compute_all_responses(dbfile: str, usecpp: bool=True, cppcompiler: str=None,
     with sqlite3.connect(dbfile) as conn:
         c = conn.cursor()
         c.execute("PRAGMA journal_mode=OFF")  # disable rollback to save time
-        t1 = datetime.now()        
-        print("Start (re)creating response table (%s)" % t1, file=sys.stderr)
-        c.execute("DROP TABLE IF EXISTS responses")        
-        c.execute("CREATE TABLE responses (input_word TEXT, answer_word TEXT, response INT)")
-        t2 = datetime.now()
-        print("End (re)creating response table (%s, elapsed: %s)" % (t2, t2-t1), file=sys.stderr)
-        
+        with _timereport("creating precomputed response table"):
+            c.execute("DROP TABLE IF EXISTS responses")
+            c.execute("CREATE TABLE responses (input_word TEXT, answer_word TEXT, response INT)")
+
         c.execute("SELECT word FROM words")
         words = [row[0] for row in c]
 
-        t1 = datetime.now()
-        q = "INSERT INTO responses VALUES (?,?,?)"
-        params = generator(words)
-        print("Start inserting to the response table (%s)" % t1, file=sys.stderr)
-        c.executemany(q, params)
-        t2 = datetime.now()
-        print("End inserting to the response table (%s, elapsed: %s)" % (t2, t2-t1), file=sys.stderr)
-        
-        t1 = datetime.now()
-        print("Start creating index (%s)" % t1, file=sys.stderr)
-        c.execute("CREATE INDEX responses_idx ON responses (input_word, response)")
-        c.execute("CREATE INDEX responses_idx2 ON responses (answer_word)")
-        t2 = datetime.now()
-        print("End creating index (%s, elapsed: %s)" % (t2, t2-t1), file=sys.stderr)
+        with _timereport("updating precomputed result"):
+            q = "INSERT INTO responses VALUES (?,?,?)"
+            params = generator(words)
+            c.executemany(q, params)
+
+        with _timereport("indexing the table"):
+            c.execute("CREATE INDEX responses_idx ON responses (input_word, response)")
+            c.execute("CREATE INDEX responses_idx2 ON responses (answer_word)")
+
         conn.commit()
 
 
@@ -224,7 +223,6 @@ def evaluate_candidates(dbfile: str, tablename: str="candidates"):
         c.execute("SELECT count(*) FROM words")
         n_words = c.fetchone()[0]
         answerfilter = "" if n_words == n_candidates else 'WHERE answer_word IN (SELECT word FROM "{}")'.format(tablename)
-
         q = """
         with tmp AS (
           SELECT
@@ -257,11 +255,9 @@ def evaluate_candidates(dbfile: str, tablename: str="candidates"):
         LEFT JOIN (SELECT word, 1 AS is_candidate FROM "{candidatetable}") AS c
           ON t.input_word = c.word
         """.format(answerfilter=answerfilter, candidatetable=tablename)
-        t1 = datetime.now()
-        print("Start evaluating candidates (%s)" % t1, file=sys.stderr)
-        c.execute(q)
-        t2 = datetime.now()
-        print("End evaluating candidates (%s, elapsed: %s)" % (t2, t2-t1), file=sys.stderr)
+        with _timereport("candidate evaluation"):
+            c.execute(q)   
+
         names = [c[0] for c in c.description]
         out = [{name: value for name, value in zip(names, row)} for row in c]
     return out
@@ -313,12 +309,9 @@ class WordleAISQLite:
                 words = read_vocabfile(words)
             # words must be unique
             words = list(set(words))
-            t1 = datetime.now()
-            print("Start setting up the database, this would take a while (%s)" % t1, file=sys.stderr)
-            create_database(dbfile, words)
-            compute_all_responses(dbfile, usecpp=usecpp, cppcompiler=cppcompiler, recompile=recompile_cpp)
-            t2 = datetime.now()
-            print("End setting up the database (%s, elapsed: %s)" % (t2, t2-t1), file=sys.stderr)
+            with _timereport("database setup, this would take a while"):
+                create_database(dbfile, words)
+                compute_all_responses(dbfile, usecpp=usecpp, cppcompiler=cppcompiler, recompile=recompile_cpp)
 
     def __del__(self):
         if hasattr(self, "candidatetable"):

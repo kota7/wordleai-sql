@@ -4,6 +4,23 @@
 #include <cassert>
 #include <map>
 
+/*
+Calculate wordle responses of all word pairs
+
+Input (standard input): 
+  N WORD_1 WORD_2 WORD_3 .... WORD_N
+
+Output (standard output):
+  WORD_1 WORD_1 RESULT_{1,1}
+  WORD_1 WORD_2 RESULT_{1,2}
+  WORD_1 WORD_3 RESULT_{1,3}
+  ....
+  WORD_N WORD_N RESULT_{N,N}
+
+Compile command example
+  g++ -Wall -Werr -O3 wordle-all-pairs.cpp
+*/
+
 int wordle_response(std::string input_word, std::string answer_word) {
   size_t n1 = input_word.size();
   size_t n2 = answer_word.size();
@@ -76,7 +93,7 @@ int main() {
     for (int j=0; j<n; j++) {
       //k++;
       int res = wordle_response(words[i], words[j]);
-      std::cout << words[i] << ',' << words[j] << ',' << res << '\n';
+      std::cout << words[i] << ' ' << words[j] << ' ' << res << '\n';
     }
   }
 
