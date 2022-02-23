@@ -506,7 +506,7 @@ def play(words: list):
             return False
         res = wordle_response(input_word, answer_word)
         res = str(decode_response(res)).zfill(wordlen)
-        info.append(" %s  %s" % (input_word, res))
+        info.append("  %s  %s" % (input_word, res))
         print("\n".join(info))
         if input_word == answer_word:
             print("Good job! You win! Answer: '%s'" % (round, answer_word))
@@ -550,8 +550,8 @@ def challenge(ai: WordleAISQLite):
         print("* Round %d *" % round)
         # ai decision
         if not ai_done:
-            print("AI is thinking ...")
-            ai_word = ai.pick_word()
+            with _timereport("AI thinking time"):
+                ai_word = ai.pick_word()
             ai_res = wordle_response(ai_word, answer_word)
             ai_res = str(decode_response(ai_res)).zfill(wordlen)
             ai.update(ai_word, ai_res)
@@ -571,8 +571,8 @@ def challenge(ai: WordleAISQLite):
             user_word = " " * wordlen
             user_res = " " * wordlen
 
-        info.append( "%s  %s | %s  %s" % (user_word, user_res, ai_word, ai_res))
-        info_mask.append(" %s  %s | %s  %s" % (user_word, user_res, ai_word if ai_done else "*"*len(ai_word), ai_res))
+        info.append("  %s  %s | %s  %s" % (user_word, user_res, ai_word, ai_res))
+        info_mask.append("  %s  %s | %s  %s" % (user_word, user_res, ai_word if ai_done else "*"*len(ai_word), ai_res))
         #print("\n".join(info))
         print("\n".join(info_mask))
         if user_word == answer_word and ai_word == answer_word:
@@ -599,8 +599,39 @@ def challenge(ai: WordleAISQLite):
     print("============================")
 
 
-def interactive(ai: WordleAISQLite):
-    pass
+def interactive(ai: WordleAISQLite, num_suggest: int=10, default_criterion: str="mean_entropy"):
+    print("")
+    print("Hello! This is Wordle AI with SQLite backend.")
+    print("")
+
+    ai.initialize()
+
+    while True:
+        maxn = 10  # max number of candidates to show
+        count, candidates = ai.remaining_candidates(maxn=maxn)
+        if count > maxn:
+            candidates.append("...")
+        if count > 1:
+            print("%d remaining candidates: %s" % (count, candidates))
+        elif count==1:
+            print("'%s' should be the answer!" % candidates[0])
+            break
+        else:
+            print("There is no candidate words consistent with the information...")
+            break
+
+        ans = receive_user_command()
+        if ans[0] == "s":
+            criterion = default_criterion if len(ans) < 2 else ans[1]
+            with _timereport("candidate evaluation"):
+                res = ai.evaluate(top_k=num_suggest, criterion=criterion)
+            print("* Top %d candidates ordered by %s" % (len(res), criterion))
+            print_eval_result(res)
+        elif ans[0] == "u":
+            ai.update(ans[1], ans[2])
+        elif ans[0] == "e":
+            break
+
 
 def main():
     parser = ArgumentParser(description="Wordle AI with SQLite backend", formatter_class=ArgumentDefaultsHelpFormatter)
@@ -664,46 +695,23 @@ def main():
                 break
         return
 
-
-    print("")
-    print("Hello! This is Wordle AI with SQLite backend.")
-    print("")
-
+    # interactive session
     vocabfile = os.path.join(os.path.dirname(__file__), "vocabs/wordle.txt") if args.vocabfile is None else args.vocabfile
     vocabfile = os.path.relpath(vocabfile, os.getcwd())
     print("Default vocab file (%s) is used" % vocabfile)
     ai = WordleAISQLite(args.dbfile, words=vocabfile, recompute=args.recompute,
                         usecpp=(not args.nocpp), cppcompiler=args.cppcompiler, recompile_cpp=args.recompile_cpp)
-    ai.initialize()
-
     while True:
-        maxn = 10  # max number of candidates to show
-        count, candidates = ai.remaining_candidates(maxn=maxn)
-        if count > maxn:
-            candidates.append("...")
-        if count > 1:
-            print("%d remaining candidates: %s" % (count, candidates))
-        elif count==1:
-            print("'%s' should be the answer!" % candidates[0])
-            break
-        else:
-            print("There is no candidate words consistent with the information...")
-            break
+        interactive(ai, num_suggest=args.num_suggest, default_criterion=args.default_criterion)
 
-        ans = receive_user_command()
-        if ans[0] == "s":
-            criterion = args.default_criterion if len(ans) < 2 else ans[1]
-            with _timereport("candidate evaluation"):        
-                res = ai.evaluate(top_k=args.num_suggest, criterion=criterion)
-            print("* Top %d candidates ordered by %s" % (len(res), criterion))
-            print_eval_result(res)
-        elif ans[0] == "u":
-            ai.update(ans[1], ans[2])
-        elif ans[0] == "e":
+        while True:
+            ans = input("Another session? (y/n) > ")
+            ans = ans.strip().lower()[0:1]
+            if ans in ("y", "n"):
+                break
+        if ans == "n":
+            print("Thank you!")
             break
-
-    print()
-    print("Thank you!")
 
 
 if __name__ == "__main__":
