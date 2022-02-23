@@ -18,8 +18,8 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from collections import Counter
 from contextlib import contextmanager
 from datetime import datetime
-from tqdm import tqdm
 from tempfile import TemporaryDirectory
+from tqdm import tqdm
 
 
 def wordle_response(input_word: str, answer_word: str)-> int:
