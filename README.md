@@ -4,19 +4,24 @@ WORDLE AI with SQL Backend
 ## Usage
 
 ```shell
-python wordleai.py
+# Install the library with pip
+pip install -U wordleaisql
+# Then run the executable that comes with the library
+wordleai-sql
+
+# Alternatively, clone this repository and simply run
+python wordleaisql/wordleai.py
 ```
 
 Note.
 - The program creates a SQLite file named "wordle-ai.db" in the working directory, whose size typically is about 8.4GB.
 - For the first run, it will take a while to set up the database.
+- The setup time will be significantly reduced if c++ compiler command (`g++` or `clang++`) is available.
 
 
 ## Session example
 
 ```shell
-python wordleai.py 
-
 Hello! This is Wordle AI with SQLite backend.
 
 12947 remaining candidates: ['yarco', 'knars', 'loamy', 'barps', 'dozed', 'yerks',
@@ -155,10 +160,17 @@ Hence, the average of `log2(n)` would be the average entropy.
 
 ```shell
 # Example
+wordleai-sql --dbfile custom-wordle.db --vocabfile my-vocab.txt
+# or 
 python wordleai.py --dbfile custom-wordle.db --vocabfile my-vocab.txt
 ```
+
+## Play and challenge mode
+
+- `wordleai-sql --play` starts a self-play game.
+- `wordleai-sql --challenge` starts a competition against an AI.
 
 
 ## Other options
 
-See `python wordleai.py -h` for other options, which should mostly be self-explanatory.
+See `wordleai-sql -h` or `python wordleai.py -h` for other options, which should mostly be self-explanatory.

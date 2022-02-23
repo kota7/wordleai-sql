@@ -94,8 +94,22 @@ def generate_responses_python_only(words: list):
         response = wordle_response(input_word, answer_word)
         yield (input_word, answer_word, response)
 
+def _package_data_file(filepath: str)-> str:
+    try:
+        import importlib_resources
+        return str(importlib_resources.files("wordleaisql") / filepath)
+    except:
+        import importlib.resources
+        return str(importlib.resources.files("wordleaisql") / filepath)
+    raise RuntimeError("File '{}' not found".format(filepath))
+
+
 def _make_enhanced_response_generator(compiler: str=None, force_recompile: bool=False):
-    scriptfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "wordle-all-pairs.cpp"))
+    # script file path
+
+    #scriptfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "wordle-all-pairs.cpp"))
+    scriptfile = _package_data_file("wordle-all-pairs.cpp")
+    #print(scriptfile)
     #execfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "wordle-all-pairs.o"))
     execfile = os.path.expanduser("~/.worldaisql/wordle-all-pairs.o")
     md5file = os.path.expanduser("~/.worldaisql/wordle-all-pairs.cpp.md5sum")
@@ -132,7 +146,7 @@ def _make_enhanced_response_generator(compiler: str=None, force_recompile: bool=
         if compiler is None:
             print("No C++ compiler is found, so C++ enhancement is not available", file=sys.stderr)
             return None
-        print("Compiling C++ script", file=sys.stderr)
+        print("Compiling C++ script (%s)" % scriptfile, file=sys.stderr)
         try:
             subprocess.run([compiler, "-Wall", "-Werror", "-O3", "-o", execfile, scriptfile])
             with open(md5file, "w") as f:
@@ -364,10 +378,16 @@ class WordleAISQLite:
         self.decision_metric = decision_metric
 
         if not os.path.isfile(dbfile) or recompute:
-            if type(words) == str:
+            if words is None:
+                # no vocab info is given --> use default file
+                vocabfile =  _package_data_file("wordle-vocab.txt")
+                print("No vocab info is given, default vocabfile ('%s') is used" % vocabfile, file=sys.stderr)
+                words = read_vocabfile(vocabfile)
+            elif type(words) == str:
+                # file path is given
                 words = read_vocabfile(words)
-            # words must be unique
-            words = list(set(words))
+            # otherwise words must be a list
+            words = list(set(words)) # words must be unique
             with _timereport("database setup, this would take a while"):
                 create_database(dbfile, words)
                 compute_all_responses(dbfile, usecpp=usecpp, cppcompiler=cppcompiler, force_recompile=force_recompile_cpp)
@@ -656,7 +676,7 @@ def interactive(ai: WordleAISQLite, num_suggest: int=10, default_criterion: str=
 
 def main():
     parser = ArgumentParser(description="Wordle AI with SQLite backend", formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--dbfile", type=str, default="wordle-ai.db", help="SQLite database file")
+    parser.add_argument("--dbfile", type=str, default="wordleai.db", help="SQLite database file")
     parser.add_argument("--vocabfile", type=str, help="Text file containing words")
     parser.add_argument("--default_criterion", type=str, default="mean_entropy",
                         choices=("max_n", "mean_n", "mean_entropy"), help="Criterion to suggest word")
@@ -693,15 +713,14 @@ def main():
                 if ans in ("y", "n"):
                     break
             if ans == "n":
+                print("")
                 print("Thank you!")
                 break
         return
 
     if args.challenge:
-        vocabfile = os.path.join(os.path.dirname(__file__), "vocabs/wordle.txt") if args.vocabfile is None else args.vocabfile
-        vocabfile = os.path.relpath(vocabfile, os.getcwd())
-        print("Default vocab file (%s) is used" % vocabfile)
-        ai = WordleAISQLite(args.dbfile, words=vocabfile, recompute=args.recompute,
+        #vocabfile = os.path.join(os.path.dirname(__file__), "vocabs/wordle.txt") if args.vocabfile is None else args.vocabfile
+        ai = WordleAISQLite(args.dbfile, words=args.vocabfile, recompute=args.recompute,
                             usecpp=(not args.nocpp), cppcompiler=args.cppcompiler, force_recompile_cpp=args.force_recompile_cpp,
                             ai_level=args.ai_level, candidate_weight=args.candidate_weight, decision_metric=args.decision_metric)
         while True:
@@ -712,28 +731,18 @@ def main():
                 if ans in ("y", "n"):
                     break
             if ans == "n":
+                print("")
                 print("Thank you!")
                 break
         return
 
     # interactive session
-    vocabfile = os.path.join(os.path.dirname(__file__), "vocabs/wordle.txt") if args.vocabfile is None else args.vocabfile
-    vocabfile = os.path.relpath(vocabfile, os.getcwd())
-    print("Default vocab file (%s) is used" % vocabfile)
-    ai = WordleAISQLite(args.dbfile, words=vocabfile, recompute=args.recompute,
+    ai = WordleAISQLite(args.dbfile, words=args.vocabfile, recompute=args.recompute,
                         usecpp=(not args.nocpp), cppcompiler=args.cppcompiler, force_recompile_cpp=args.force_recompile_cpp)
-    while True:
-        interactive(ai, num_suggest=args.num_suggest, default_criterion=args.default_criterion)
-
-        while True:
-            ans = input("Another session? (y/n) > ")
-            ans = ans.strip().lower()[0:1]
-            if ans in ("y", "n"):
-                break
-        if ans == "n":
-            print("Thank you!")
-            break
-
+    interactive(ai, num_suggest=args.num_suggest, default_criterion=args.default_criterion)
+    print("")
+    print("Thank you!")
+    
 
 if __name__ == "__main__":
     main()
