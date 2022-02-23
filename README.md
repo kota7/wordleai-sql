@@ -5,12 +5,12 @@ WORDLE AI with SQL Backend
 ## Usage
 
 ```shell
-# Install the library with pip
+# Install this library via PyPI
 pip install wordleaisql
 # Then run the executable that comes with the library
 wordleai-sql
 
-# Alternatively, clone this repository and simply run
+# Alternatively, clone this repository and run
 python wordleaisql/wordleai.py
 ```
 
@@ -163,8 +163,6 @@ Hence, the average of `log2(n)` would be the average entropy.
 ```shell
 # Example
 wordleai-sql --dbfile custom-wordle.db --vocabfile my-vocab.txt
-# or 
-python wordleai.py --dbfile custom-wordle.db --vocabfile my-vocab.txt
 ```
 
 ## Play and challenge mode
@@ -175,4 +173,4 @@ python wordleai.py --dbfile custom-wordle.db --vocabfile my-vocab.txt
 
 ## Other options
 
-See `wordleai-sql -h` or `python wordleai.py -h` for other options, which should mostly be self-explanatory.
+See `wordleai-sql -h` for other options, which should mostly be self-explanatory.
