@@ -8,6 +8,7 @@ Wordle AI with SQLite backend.
 import itertools
 import math
 import os
+import random
 import re
 import sqlite3
 import subprocess 
@@ -273,8 +274,7 @@ def evaluate_candidates(dbfile: str, tablename: str="candidates"):
         LEFT JOIN (SELECT word, 1 AS is_candidate FROM "{candidatetable}") AS c
           ON t.input_word = c.word
         """.format(answerfilter=answerfilter, candidatetable=tablename)
-        with _timereport("candidate evaluation"):
-            c.execute(q)   
+        c.execute(q)   
 
         names = [c[0] for c in c.description]
         out = [{name: value for name, value in zip(names, row)} for row in c]
@@ -298,15 +298,26 @@ def update_candidate(dbfile: str, input_word: str, response: str, tablename: str
         c.execute(q, param)
         conn.commit()
 
-def get_candidates(dbfile: str, n: int=30, tablename: str="candidates"):
+def get_candidates(dbfile: str, n: int=30, tablename: str="candidates")-> tuple:
     with sqlite3.connect(dbfile) as conn:
         c = conn.cursor()
         c.execute('SELECT count(*) FROM "{}"'.format(tablename))
         count = c.fetchone()[0]
-        c.execute('SELECT word FROM "{}" LIMIT {}'.format(tablename, n))
+        if n is None:
+            c.execute('SELECT word FROM "{}"'.format(tablename))
+        else:
+            assert type(n) == int and n > 0
+            c.execute('SELECT word FROM "{}" LIMIT {}'.format(tablename, n))
         candidates = [row[0] for row in c.fetchall()]
-
     return count, candidates
+
+def get_words(dbfile: str)-> list:
+    with sqlite3.connect(dbfile) as conn:
+        c = conn.cursor()
+        c.execute('SELECT word FROM words')
+        words = [row[0] for row in c.fetchall()]
+    return words
+
 
 
 def read_vocabfile(filepath: str):
@@ -319,8 +330,17 @@ def read_vocabfile(filepath: str):
 
 class WordleAISQLite:
     def __init__(self, dbfile: str, words: list or str=None, recompute: bool=False,
-                 usecpp: bool=True, cppcompiler: str=None, recompile_cpp: bool=False):
+                 usecpp: bool=True, cppcompiler: str=None, recompile_cpp: bool=False,
+                 ai_level: float=6, candidate_weight: float=0.3, decision_metric: str="mean_entropy"):
         self.dbfile = dbfile
+        # parameters used for making a choice
+        self.level = ai_level
+        power = 5 - ai_level  # 0 -> 5, 1 -> 3, ..., 10 -> 5
+        power = min(max(power, -5), 5)  # clip to [-5, 5]
+        noise = math.pow(10, power)  # the smaller the stronger, 1e-5 ~ 1e+5
+        self.decision_noise = noise
+        self.candidate_weight = candidate_weight
+        self.decision_metric = decision_metric
 
         if not os.path.isfile(dbfile) or recompute:
             if type(words) == str:
@@ -352,21 +372,43 @@ class WordleAISQLite:
     def update(self, input_word: str, result: str or int):
         update_candidate(self.dbfile, input_word, result, tablename=self.candidatetable)
 
-    def remaining_candidates(self, n: int=10)-> bool:
+    def remaining_candidates(self, maxn: int=10)-> tuple:
         # return True if zero or one candidate left
-        count, candidates = get_candidates(self.dbfile, n=n, tablename=self.candidatetable)
-        if count > n:
-            candidates.append("...")
+        count, candidates = get_candidates(self.dbfile, n=maxn, tablename=self.candidatetable)
+        return count, candidates
+    
+    def get_words(self)-> list:
+        return get_words(self.dbfile)
+    
+    def pick_word(self):
+        count, candidates = self.remaining_candidates()
+        #print(count, candidates)
+        if count == 1:
+            return candidates[0]
+        elif count == 0:
+            print("Warning: No candidates left. This is a random choice")
+            return random.choice(get_words())
 
-        if count > 1:
-            print("%d remaining candidates: %s" % (count, candidates))
-            return False
-        elif count==1:
-            print("'%s' should be the answer!" % candidates[0])
-            return True
-        else:
-            print("There is no candidate words consistent with the information...")
-            return True
+        results = self.evaluate(top_k=10000, criterion=self.decision_metric)
+        #print(results[:10], len(results))        
+        words = [row["input_word"] for row in results]
+        scores = [row[self.decision_metric] for row in results]  # score of eadch word, the smaller the better
+        if self.decision_metric in ("mean_n", "max_n"):
+            # we take log of the score to adjust for the scale
+            # add 1p just in case to avoid the zero error
+            scores = [math.log1p(s) for s in scores]
+        
+        # Flip the sign and adjust for the candidates
+        for i, row in enumerate(results):
+            scores[i] = row["is_candidate"] * self.candidate_weight - scores[i]
+        # Subtract the maximum to normalize and avoid overflows
+        maxscore = max(scores)
+        scores = [s - maxscore for s in scores]
+        # get choice weights with the given noise level
+        weights = [math.exp(s / self.decision_noise) for s in scores]
+        
+        out = random.choices(words, weights=weights, k=1)
+        return out[0]
 
 
 def receive_user_command():
@@ -431,6 +473,135 @@ def print_eval_result(x: list):
     print("-" * (12*5 + 4*2))
 
 
+def play(words: list):
+    tmp = words[:5]
+    if len(words) > 5:
+        tmp.append("...")
+    print("")
+    print("Wordle game with %d words, e.g. %s" % (len(words), tmp))
+    print("")
+    print("Type your guess, or 'give up' to finish the game")
+
+    # pick an answer randomly
+    answer_word = random.choice(words)
+    wordlen = len(answer_word)
+        
+    # define a set version of words for quick check for existence
+    words_set = set(words)
+    def _get_word():
+        while True:
+            x = input("> ").strip()
+            if x in words_set or x == "give up":
+                return x
+            print("Invalid word: '%s'" % x)
+                
+    round = 0
+    info = []
+    while True:
+        round += 1
+        print("* Round %d *" % round)
+        input_word = _get_word()
+        if input_word == "give up":
+            print("You lose. Answer: '%s'." % answer_word)
+            return False
+        res = wordle_response(input_word, answer_word)
+        res = str(decode_response(res)).zfill(wordlen)
+        info.append(" %s  %s" % (input_word, res))
+        print("\n".join(info))
+        if input_word == answer_word:
+            print("Good job! You win! Answer: '%s'" % (round, answer_word))
+            return True
+
+def challenge(ai: WordleAISQLite):
+    ai.initialize()
+    count, words = ai.remaining_candidates(maxn=None)  # right after the initialization, all candidates are remaining
+    assert count == len(words)
+    tmp = words[:5]
+    if len(words) > 5:
+        tmp.append("...")
+    print("")
+    print("Wordle game against AI (level %s)" % ai.level)
+    print("%d words, e.g. %s" % (len(words), tmp))
+    print("")
+    print("Type your guess, or 'give up' to finish the game")
+    print("")
+
+    # pick an answer randomly
+    answer_word = random.choice(words)
+    wordlen = len(answer_word)
+
+    # define a set version of words for quick check for existence
+    words_set = set(words)
+    def _get_word():
+        while True:
+            x = input("Your turn > ").strip()
+            if x in words_set or x == "give up":
+                return x
+            print("Invalid word: '%s'" % x)
+
+    round = 0
+    #header = "%-{ncol}s | %-{ncol}s".format(ncol=wordlen*2 + 2) % ("User", "AI")
+    info = []
+    info_mask = []
+    user_done = False
+    ai_done = False
+    while True:
+        round += 1
+        print("* Round %d *" % round)
+        # ai decision
+        if not ai_done:
+            print("AI is thinking ...")
+            ai_word = ai.pick_word()
+            ai_res = wordle_response(ai_word, answer_word)
+            ai_res = str(decode_response(ai_res)).zfill(wordlen)
+            ai.update(ai_word, ai_res)
+        else:
+            ai_word = " " * wordlen
+            ai_res = " " * wordlen
+        
+        # user decision
+        if not user_done:
+            user_word = _get_word()
+            if user_word == "give up":
+                print("You lose.")
+                break
+            user_res = wordle_response(user_word, answer_word)
+            user_res = str(decode_response(user_res)).zfill(wordlen)
+        else:
+            user_word = " " * wordlen
+            user_res = " " * wordlen
+
+        info.append( "%s  %s | %s  %s" % (user_word, user_res, ai_word, ai_res))
+        info_mask.append(" %s  %s | %s  %s" % (user_word, user_res, ai_word if ai_done else "*"*len(ai_word), ai_res))
+        #print("\n".join(info))
+        print("\n".join(info_mask))
+        if user_word == answer_word and ai_word == answer_word:
+            print("Good job! It's draw.")
+            break
+        elif user_word == answer_word:
+            if ai_done:
+                print("Well done!")
+            else:
+                print("Great job! You win!")
+            user_done = True
+        elif ai_word == answer_word:
+            if user_done:
+                print("Thanks for waiting.")
+            else:
+                print("You lose...")
+            ai_done = True            
+        
+        if user_done and ai_done:
+            break
+    print("============================")
+    print("Answer: '%s'" % answer_word)
+    print("\n".join(info))
+    print("============================")
+
+
+def interactive(ai: WordleAISQLite):
+    pass
+
 def main():
     parser = ArgumentParser(description="Wordle AI with SQLite backend", formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("--dbfile", type=str, default="wordle-ai.db", help="SQLite database file")
@@ -442,32 +613,88 @@ def main():
     parser.add_argument("--nocpp", action="store_true", help="Do not use C++ enhancement for precomputation")
     parser.add_argument("--recompile_cpp", action="store_true", help="Force recompiling the C++ script")
     parser.add_argument("--cppcompiler", type=str, help="C++ compiler command (if not given, the program search 'g++' or 'clang++')")
-    parser.add_argument("--clean_candidate_tables", action="store_true", help="Remove existing candidate tables before session")
+    parser.add_argument("--clean_candidate_tables", action="store_true", help="Remove existing candidate tables before the session")
+    parser.add_argument("--play", action="store_true", help="Play your own game")
+    parser.add_argument("--challenge", action="store_true", help="Challenge AI")
+    parser.add_argument("--ai_level", type=float, default=6, help="Strength of AI in [0, 10]")
+    parser.add_argument("--decision_metric", type=str, default="mean_entropy",
+                        choices=("max_n", "mean_n", "mean_entropy"), help="Criterion to pick a word in challege mode")
+    parser.add_argument("--candidate_weight", type=float, default=0.3)
     args = parser.parse_args()
-
-    print("")
-    print("Hello! This is Wordle AI with SQLite backend.")
-    print("")
 
     if args.clean_candidate_tables:
         if os.path.isfile(args.dbfile):
             for table in list_candidate_tables():
                 remove_table(args.dbfile, table)
 
+    if args.play:
+        if args.vocabfile is not None:
+            # use this vocab file
+            words = read_vocabfile(args.vocabfile)
+        elif args.dbfile is not None:
+            words = get_words(args.dbfile)
+        while True:
+            play(words)
+            while True:
+                ans = input("One more game? (y/n) > ")
+                ans = ans.strip().lower()[0:1]
+                if ans in ("y", "n"):
+                    break
+            if ans == "n":
+                print("Thank you!")
+                break
+        return
+
+    if args.challenge:
+        vocabfile = os.path.join(os.path.dirname(__file__), "vocabs/wordle.txt") if args.vocabfile is None else args.vocabfile
+        vocabfile = os.path.relpath(vocabfile, os.getcwd())
+        print("Default vocab file (%s) is used" % vocabfile)
+        ai = WordleAISQLite(args.dbfile, words=vocabfile, recompute=args.recompute,
+                            usecpp=(not args.nocpp), cppcompiler=args.cppcompiler, recompile_cpp=args.recompile_cpp,
+                            ai_level=args.ai_level, candidate_weight=args.candidate_weight, decision_metric=args.decision_metric)
+        while True:
+            challenge(ai)
+            while True:
+                ans = input("One more game? (y/n) > ")
+                ans = ans.strip().lower()[0:1]
+                if ans in ("y", "n"):
+                    break
+            if ans == "n":
+                print("Thank you!")
+                break
+        return
+
+
+    print("")
+    print("Hello! This is Wordle AI with SQLite backend.")
+    print("")
+
     vocabfile = os.path.join(os.path.dirname(__file__), "vocabs/wordle.txt") if args.vocabfile is None else args.vocabfile
+    vocabfile = os.path.relpath(vocabfile, os.getcwd())
     print("Default vocab file (%s) is used" % vocabfile)
     ai = WordleAISQLite(args.dbfile, words=vocabfile, recompute=args.recompute,
                         usecpp=(not args.nocpp), cppcompiler=args.cppcompiler, recompile_cpp=args.recompile_cpp)
     ai.initialize()
 
     while True:
-        if ai.remaining_candidates():
+        maxn = 10  # max number of candidates to show
+        count, candidates = ai.remaining_candidates(maxn=maxn)
+        if count > maxn:
+            candidates.append("...")
+        if count > 1:
+            print("%d remaining candidates: %s" % (count, candidates))
+        elif count==1:
+            print("'%s' should be the answer!" % candidates[0])
+            break
+        else:
+            print("There is no candidate words consistent with the information...")
             break
 
         ans = receive_user_command()
         if ans[0] == "s":
             criterion = args.default_criterion if len(ans) < 2 else ans[1]
-            res = ai.evaluate(top_k=args.num_suggest, criterion=criterion)
+            with _timereport("candidate evaluation"):        
+                res = ai.evaluate(top_k=args.num_suggest, criterion=criterion)
             print("* Top %d candidates ordered by %s" % (len(res), criterion))
             print_eval_result(res)
         elif ans[0] == "u":
