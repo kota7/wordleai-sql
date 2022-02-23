@@ -144,12 +144,33 @@ def _make_enhanced_response_generator(compiler: str=None, recompile: bool=False)
 
 
 def compute_all_responses(dbfile: str, usecpp: bool=True, cppcompiler: str=None, recompile: bool=False):
+    with sqlite3.connect(dbfile) as conn:
+        c = conn.cursor()
+        c.execute("SELECT word FROM words")
+        words = [row[0] for row in c]
+    # check if all words are ascii and not a space character (otherwise cpp script does not work)
+    def _ascii_no_space(letter):
+        if ord(letter) > 255 or ord(letter) < 1:
+            return False
+        if re.search(r"\s", letter) is not None:
+            return False
+        return True
+    all_ascii_no_space = True
+    for word in words:
+        if not all(_ascii_no_space(letter) for letter in word):
+            all_ascii_no_space = False
+            break
+
+    generator = None
     if usecpp:
-        generator = _make_enhanced_response_generator(compiler=cppcompiler, recompile=recompile)
-        if generator is None:
-            print("C++ enhancement is not available", file=sys.stderr)
-            generator = generate_responses_python_only
-    else:
+        if not all_ascii_no_space:
+            print("C++ enhancement is not available for non-ascii letters")
+        else:
+            generator = _make_enhanced_response_generator(compiler=cppcompiler, recompile=recompile)
+            if generator is None:
+                print("C++ enhancement is not available", file=sys.stderr)
+                generator = generate_responses_python_only
+    if generator is None:  # default option
         generator = generate_responses_python_only
 
     with sqlite3.connect(dbfile) as conn:
@@ -158,9 +179,6 @@ def compute_all_responses(dbfile: str, usecpp: bool=True, cppcompiler: str=None,
         with _timereport("creating precomputed response table"):
             c.execute("DROP TABLE IF EXISTS responses")
             c.execute("CREATE TABLE responses (input_word TEXT, answer_word TEXT, response INT)")
-
-        c.execute("SELECT word FROM words")
-        words = [row[0] for row in c]
 
         with _timereport("updating precomputed result"):
             q = "INSERT INTO responses VALUES (?,?,?)"
@@ -436,7 +454,7 @@ def main():
             for table in list_candidate_tables():
                 remove_table(args.dbfile, table)
 
-    vocabfile = os.path.join(os.path.dirname(__file__), "vocab.txt") if args.vocabfile is None else args.vocabfile
+    vocabfile = os.path.join(os.path.dirname(__file__), "vocabs/wordle.txt") if args.vocabfile is None else args.vocabfile
     print("Default vocab file (%s) is used" % vocabfile)
     ai = WordleAISQLite(args.dbfile, words=vocabfile, recompute=args.recompute,
                         usecpp=(not args.nocpp), cppcompiler=args.cppcompiler, recompile_cpp=args.recompile_cpp)
