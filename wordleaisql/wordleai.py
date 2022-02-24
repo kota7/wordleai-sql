@@ -103,6 +103,11 @@ def _package_data_file(filepath: str)-> str:
         return str(importlib.resources.files("wordleaisql") / filepath)
     raise RuntimeError("File '{}' not found".format(filepath))
 
+def default_wordle_vocab()-> list:
+    vocabfile =  _package_data_file("wordle-vocab.txt")
+    words = read_vocabfile(vocabfile)
+    return words
+
 
 def _make_enhanced_response_generator(compiler: str=None, force_recompile: bool=False):
     # script file path
@@ -380,9 +385,8 @@ class WordleAISQLite:
         if not os.path.isfile(dbfile) or recompute or (words is not None):
             if words is None:
                 # no vocab info is given --> use default file
-                vocabfile =  _package_data_file("wordle-vocab.txt")
-                print("No vocab info is given, default vocabfile ('%s') is used" % vocabfile, file=sys.stderr)
-                words = read_vocabfile(vocabfile)
+                print("No vocab info is given, default vocabfile is used", file=sys.stderr)
+                words = default_wordle_vocab()
             elif type(words) == str:
                 # file path is given
                 words = read_vocabfile(words)
@@ -468,10 +472,12 @@ def receive_user_command():
           "> "
         ]
         ans = input("\n".join(message))
+        ans = re.sub(r"\s+", " ", ans.strip())
+        ans = ans.split(" ")
         if len(ans) <= 0:
             continue
 
-        if ans[0] == "s":
+        if ans[0][0] == "s":
             if len(ans) > 1:
                 criterion = ans[1]
                 if criterion not in ("max_n", "mean_n", "mean_entropy"):
@@ -480,9 +486,7 @@ def receive_user_command():
                 return ["s", criterion]
             else:
                 return ["s"]
-        elif ans[0] == "u":
-            ans = re.sub(r"\s+", " ", ans)
-            ans = ans.split(" ")
+        elif ans[0][0] == "u":
             if len(ans) < 3:
                 continue
             word, result = ans[1], ans[2]
@@ -493,7 +497,7 @@ def receive_user_command():
                 print("Word and result length mismatch")
                 continue
             return ["u", word, result]
-        elif ans[0] == "e":
+        elif ans[0][0] == "e":
             return ["e"]
 
 def print_eval_result(x: list):
