@@ -8,15 +8,16 @@ with open(readmefile) as f:
 
 setup(
     name='wordleaisql',
-    version='0.0.5',
+    version='0.1.0',
     description='Wordle AI with SQL Backend',
     long_description=readme,
     long_description_content_type="text/markdown",
     packages=find_packages(),
     install_requires=['tqdm'],
-    test_require=[],
+    #test_require=[],
     package_data={"wordleaisql": ["wordle-all-pairs.cpp", "wordle-vocab.txt"]},
-    entry_points={'console_scripts': 'wordleai-sql=wordleaisql.wordleai:main'},
+    entry_points={'console_scripts': ['wordleai-sql=wordleaisql.wordleai:main',
+                                      'wordleai=wordleaisql.api:main']},
     
     classifiers=[
         # How mature is this project? Common values are
