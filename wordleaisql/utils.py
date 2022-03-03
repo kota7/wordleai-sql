@@ -2,9 +2,20 @@
 
 import os
 import sys
+import itertools
+import hashlib
+import subprocess
 from collections import Counter, namedtuple
 from contextlib import contextmanager
 from datetime import datetime
+from tempfile import TemporaryDirectory
+from logging import getLogger
+logger = getLogger(__name__)
+
+from tqdm import tqdm
+
+def _dedup(x: list)-> list: 
+    return list(dict.fromkeys(x))
 
 def wordle_judge(input_word: str, answer_word: str)-> int:
     """
@@ -89,16 +100,15 @@ def _package_data_file(filepath: str)-> str:
         return str(importlib_resources.files("wordleaisql") / filepath)
     raise RuntimeError("File '{}' not found".format(filepath))
 
-def _read_vocabfile(filepath: str)-> set:
+def _read_vocabfile(filepath: str)-> list:
     assert os.path.isfile(filepath), "'{}' does not exist".format(filepath)
     with open(filepath) as f:
         words = [line.strip() for line in f]
         # remove empty strings, just in case
         words = [w for w in words if len(w) > 0]
-    
-    return set(words)
+    return _dedup(words)
 
-def default_wordle_vocab()-> set:
+def default_wordle_vocab()-> list:
     vocabfile =  _package_data_file("wordle-vocab.txt")
     words = _read_vocabfile(vocabfile)
     return words
@@ -106,7 +116,99 @@ def default_wordle_vocab()-> set:
 @contextmanager
 def _timereport(taskname: str="task", datetimefmt: str="%Y-%m-%d %H:%M:%S"):
     t1 = datetime.now()
-    print("Start %s (%s)" % (taskname, t1.strftime(datetimefmt)), file=sys.stderr)
+    logger.info("Start %s (%s)", taskname, t1.strftime(datetimefmt))
     yield
     t2 = datetime.now()
-    print("End %s (%s, elapsed: %s)" % (taskname, t2.strftime(datetimefmt), t2-t1), file=sys.stderr)
+    logger.info("End %s (%s, elapsed: %s)", taskname, t2.strftime(datetimefmt), t2-t1)
+
+
+def _all_wordle_judges(words: list):
+    total = len(words)**2
+    nchar = len(str(total))
+    for input_word, answer_word in tqdm(itertools.product(words, words), total=total):
+        response = wordle_judge(input_word, answer_word)
+        yield (input_word, answer_word, response)
+
+def _compile_cpp(scriptfile: str, execfile: str, md5file: str, compiler: str=None, recompile: bool=False)-> bool:
+    # we keep the md5 info of the source file to detect any changes
+    # and compile the file only if the hash is not changed
+    os.makedirs(os.path.dirname(execfile), exist_ok=True)
+    os.makedirs(os.path.dirname(md5file), exist_ok=True)
+
+    # compare the hash record
+    if os.path.isfile(md5file):
+        with open(md5file) as f:
+            hash_prev = f.read()
+    else:
+        hash_prev = None
+    h = hashlib.md5()
+    with open(scriptfile, "rb") as f:
+        h.update(f.read())
+    hash_this = h.hexdigest()
+    script_updated = (hash_this != hash_prev)
+    
+    if os.path.isfile(execfile) and (not script_updated) and (not recompile):
+        logger.info("Compiled file ('%s') already exists and source has no update", execfile)
+    else:
+        # compile cpp script
+        if compiler is None:
+            # find a c++ compiler
+            for c in ("g++", "clang++"):
+                try:
+                    subprocess.run([c, "--help"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    compiler = c
+                    logger.info("C++ compiler detected: '%s'", compiler)
+                    break
+                except FileNotFoundError:
+                    continue
+        if compiler is None:
+            logger.warning("No C++ compiler is found, so C++ enhancement is not available")
+            return False
+
+        logger.info("Compiling C++ script (%s)", scriptfile)
+        try:
+            subprocess.run([compiler, "-Wall", "-Werror", "-O3", "-o", execfile, scriptfile])
+            with open(md5file, "w") as f:
+                f.write(hash_this)
+        except Exception as e:
+            logger.warning("C++ compile failed, so C++ enhancement is not available")
+            return False
+    return True
+
+def _all_wordle_judges_cpp(words: list, recompile: bool=False, compiler: str=None):
+    scriptfile = _package_data_file("wordle-judge-all.cpp")
+    #print(scriptfile)
+    #execfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "wordle-all-pairs.o"))
+    execfile = os.path.expanduser("~/.worldaisql/wordle-judge-all.o")
+    md5file = os.path.expanduser("~/.worldaisql/wordle-all-pairs.cpp.md5sum")
+
+    if not _compile_cpp(scriptfile, execfile, md5file, compiler=compiler, recompile=recompile):
+        raise RuntimeError("C++ compile failed")
+
+    with TemporaryDirectory() as tmpdir:
+        # create input file for the c++ script
+        infile = os.path.join(tmpdir, "infile.txt")
+        with open(infile, "w") as f:
+            f.write(str(len(words)))
+            f.write(" ".join(words))
+
+        # run c++ script to save the results as a csv file
+        outfile = os.path.join(tmpdir, "outfile.txt")
+        #outfile = "responses.txt"  # for temporary check for the output table
+        with open(infile) as f, open(outfile, "w") as g:
+            with _timereport("Computing all wordle results"):
+                subprocess.run([execfile], stdin=f, stdout=g)
+        
+        # generate the outcomes
+        with open(outfile) as f:
+            total = len(words)**2
+            for line in tqdm(f, total=total):
+                yield line.strip().split(" ")
+    
+def all_wordle_judges(words: list, use_cpp: bool=True):
+    if use_cpp:
+        try:
+            return _all_wordle_judges_cpp(words)
+        except Exception as e:
+            logger.warning("C++ enhancement is not available, pure python implementation is used")
+    return _all_wordle_judges(words)

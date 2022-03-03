@@ -3,10 +3,11 @@
 import random
 import re
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from logging import basicConfig
 
 from .base import WordleAI
-from .utils import show_word_evaluations, default_wordle_vocab, _timereport, wordle_judge, decode_judgement
-
+from .utils import show_word_evaluations, default_wordle_vocab, _timereport, wordle_judge, decode_judgement, _read_vocabfile
+from .sqlite import WordleAISQLite
 
 def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_entropy"):
     ai.set_candidates()  # initialize all candidates
@@ -83,23 +84,21 @@ def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_
             break
 
 
-def play(input_words: list, answer_words: list=None):
-    tmp = input_words[:5]
+def play(words: list):
+    tmp = words[:5]
     if len(words) > 5:
         tmp.append("...")
     print("")
-    print("Wordle game with %d words, e.g. %s" % (len(input_words), tmp))
+    print("Wordle game with %d words, e.g. %s" % (len(words), tmp))
     print("")
     print("Type your guess, or 'give up' to finish the game")
 
-    if answer_words is None:
-        answer_words = input_words
     # pick an answer randomly
-    answer_word = random.choice(answer_words)
+    answer_word = random.choice(words)
     wordlen = len(answer_word)
         
     # define a set version of words for quick check for existence
-    input_words_set = set(input_words)
+    input_words_set = set(words)
     def _get_word():
         while True:
             x = input("> ").strip()
@@ -116,20 +115,20 @@ def play(input_words: list, answer_words: list=None):
         if input_word == "give up":
             print("You lose. Answer: '%s'." % answer_word)
             return False
-        res = wordle_response(input_word, answer_word)
-        res = str(decode_response(res)).zfill(wordlen)
+        res = wordle_judge(input_word, answer_word)
+        res = str(decode_judgement(res)).zfill(wordlen)
         info.append("  %s  %s" % (input_word, res))
         print("\n".join(info))
         if input_word == answer_word:
             print("Good job! You win! Answer: '%s'" % answer_word)
             return True
 
-def challenge(ai: WordleAI):
+def challenge(ai: WordleAI, max_round: int=20):
     ai.set_candidates()
     n_ans = len(ai.candidates)
-    n_words = len(ai.input_words)
+    n_words = len(ai.words)
 
-    tmp = ai.input_words[:5]
+    tmp = ai.words[:5]
     if n_words > 5:
         tmp.append("...")
     print("")
@@ -140,11 +139,11 @@ def challenge(ai: WordleAI):
     print("")
 
     # pick an answer randomly
-    answer_word = random.choice(ai.answer_words)
+    answer_word = random.choice(ai.words)
     wordlen = len(answer_word)
 
     # define a set version of words for quick check for existence
-    words_set = set(ai.input_words)
+    words_set = set(ai.words)
     def _get_word():
         while True:
             x = input("Your turn > ").strip()
@@ -159,6 +158,8 @@ def challenge(ai: WordleAI):
     user_done = False
     ai_done = False
     while True:
+        if round_ >= max_round:
+            break
         round_ += 1
         print("* Round %d *" % round_)
         # ai decision
@@ -213,20 +214,45 @@ def challenge(ai: WordleAI):
 
 
 def main():
-    parser = ArgumentParser(description="Wordle AI", formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-b", "--backend", default="random", type=str, help="AI backend")
+    basicConfig(level=20, format="[%(levelname)s] %(message)s")
+    parser = ArgumentParser(description="Wordle AI with SQL backend", formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument("-b", "--backend", type=str, default="sqlite", choices=["sqlite", "bq", "random"], help="AI type")
     parser.add_argument("--vocabfile", type=str, help="Text file containing words")
-    parser.add_argument("--play", action="store_true", help="Play your own game")
+    parser.add_argument("--vocabname", default="wordle", type=str, help="Name of vocabulary")
+    parser.add_argument("--resetup", action="store_true", help="Setup the vocabulary if already exists")
+    parser.add_argument("--sqlitefile", default="wordleai.db", type=str, help="SQLite database file")
+    parser.add_argument("--suggest_criterion", type=str, default="mean_entropy", choices=["max_n", "mean_n", "mean_entropy"],
+                        help="Criterion for an AI to sort the word suggestions")
+    parser.add_argument("--num_suggest", type=int, default=10, help="Number of suggestion to print")
+    parser.add_argument("--ai_strength", type=float, default=5, help="Strength of AI in [0, 10] in challenge mode")
+    parser.add_argument("--decision_metric", type=str, default="mean_entropy", choices=["max_n", "mean_n", "mean_entropy"],
+                        help="Criterion for an AI to use in challenge mode")
+    parser.add_argument("--candidate_weight", type=float, default=0.3, help="Weight applied to the answer candidate words in challenge mode")
+
+    parser.add_argument("--play", action="store_true", help="Play your own game without AI")
     parser.add_argument("--challenge", action="store_true", help="Challenge AI")
+    parser.add_argument("--max_round", type=int, default=20, help="Maximum rounds in challenge mode")
+
+    parser.add_argument("--no_cpp", action="store_true", help="Not to use C++ script even if available")
+    parser.add_argument("--cpp_recompile", action="store_true", help="Compile the C++ script again even if the source script is not updated")
+    parser.add_argument("--cpp_compiler", type=str, help="Command name of the C++ compiler")
+    
     args = parser.parse_args()
-    
+
+    words = default_wordle_vocab() if args.vocabfile is None else _read_vocabfile(args.vocabfile)
     if args.play:
-        words = default_wordle_vocab()        
-    elif args.challenge:
-        words = default_wordle_vocab()
-        challenge(WordleAI("wordle", words))
+        return play(words)
+        
+    if args.backend == "sqlite":
+        ai = WordleAISQLite(args.vocabname, words, dbfile=args.sqlitefile, resetup=args.resetup,
+                            decision_metric=args.decision_metric, candidate_weight=args.candidate_weight,
+                            use_cpp=(not args.no_cpp), cpp_recompile=args.cpp_recompile, cpp_compiler=args.cpp_compiler)
+    elif args.backend == "random":
+        ai = WordleAI(args.vocabname, words)
     else:
-        words = default_wordle_vocab()
-        interactive(WordleAI("wordle", words))
-    
-    
+        raise NotImplementedError(args.backend)
+
+    if args.challenge:
+        return challenge(ai, args.max_round)
+    else:
+        return interactive(ai)
