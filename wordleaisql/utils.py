@@ -94,7 +94,10 @@ def show_word_evaluations(x: list):
 def _package_data_file(filepath: str)-> str:
     try:
         import importlib.resources
-        return str(importlib.resources.Path("wordleaisql") / filepath)
+        # importlib.resrouces.files is new in python 3.9
+        # this is a workaround I found
+        with importlib.resources.path("wordleaisql", filepath) as f:
+            return str(f)
     except:
         import importlib_resources
         return str(importlib_resources.files("wordleaisql") / filepath)
