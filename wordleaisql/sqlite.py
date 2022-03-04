@@ -156,11 +156,12 @@ class WordleAISQLite(WordleAI):
         # strength is linearly converted to the power of noise: 0 -> +5, 10 -> -5
         # larger noise, close to random decision
         self.decision_noise = math.pow(10, self.strength)
-        self._words = _read_vocabfile(words) if type(words) == str else _dedup(words)
-        print(resetup)
+
         if resetup or (vocabname not in self.vocabnames):
+            words = _read_vocabfile(words) if type(words) == str else _dedup(words)
             with _timereport("Setup tables for vocabname '%s'" % vocabname):
-                _setup(dbfile, vocabname, words, use_cpp=use_cpp, recompile=cpp_recompile, compiler=cpp_compiler)
+                _setup(dbfile=dbfile, vocabname=vocabname, words=words, use_cpp=use_cpp, recompile=cpp_recompile, compiler=cpp_compiler)
+
         self.set_candidates()
 
     @property

@@ -315,8 +315,9 @@ class WordleAIBigquery(WordleAISQLite):
         # strength is linearly converted to the power of noise: 0 -> +5, 10 -> -5
         # larger noise, close to random decision
         self.decision_noise = math.pow(10, self.strength)
-        self._words = _read_vocabfile(words) if type(words) == str else _dedup(words)
+
         if resetup or vocabname not in self.vocabnames:
+            words = _read_vocabfile(words) if type(words) == str else _dedup(words)
             with _timereport("Setup tables for vocabname '%s'" % vocabname):
                 _setup(client=self.client, vocabname=self.vocabname, words=words,
                        project=self.project, location=self.location, partition_size=partition_size)

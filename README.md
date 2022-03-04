@@ -10,8 +10,8 @@ pip install wordleaisql
 # Then run the executable that comes with the library
 wordleai-sql
 
-# Alternatively, clone this repository and run
-python wordleaisql/wordleai.py
+# Alternatively, clone this repository and run without pip-install
+python wordleai-sql.py
 ```
 
 Note.
@@ -23,7 +23,7 @@ Note.
 ## Session example
 
 ```shell
-Hello! This is Wordle AI with SQLite backend.
+Hello! This is Wordle AI (SQLite backend).
 
 12947 remaining candidates: ['yarco', 'knars', 'loamy', 'barps', 'dozed', 'yerks',
 'reggo', 'rowth', 'spoom', 'rewin', '...']
@@ -38,8 +38,8 @@ where
   <result>     is a string of 0 (no match), 1 (partial match), and 2 (exact match)
 
 > s
-Start evaluating candidates (2022-02-21 20:59:06.659721)
-End evaluating candidates (2022-02-21 20:59:22.748949, elapsed: 0:00:16.089228)
+Start AI evaluation (2022-02-21 20:59:06.659721)
+End AI evaluation (2022-02-21 20:59:22.748949, elapsed: 0:00:16.089228)
 * Top 20 candidates ordered by mean_entropy
 --------------------------------------------------------------------
   input_word         max_n        mean_n  mean_entropy  is_candidate
@@ -91,8 +91,8 @@ where
   <result>     is a string of 0 (no match), 1 (partial match), and 2 (exact match)
 
 > s
-Start evaluating candidates (2022-02-21 20:59:30.849712)
-End evaluating candidates (2022-02-21 20:59:32.386516, elapsed: 0:00:01.536804)
+Start AI evaluation (2022-02-21 20:59:30.849712)
+End AI evaluation (2022-02-21 20:59:32.386516, elapsed: 0:00:01.536804)
 * Top 20 candidates ordered by mean_entropy
 --------------------------------------------------------------------
   input_word         max_n        mean_n  mean_entropy  is_candidate
@@ -170,6 +170,34 @@ wordleai-sql --dbfile custom-wordle.db --vocabfile my-vocab.txt
 - `wordleai-sql --play` starts a self-play game.
 - `wordleai-sql --challenge` starts a competition against an AI.
 
+
+## Use google bigquery backend
+
+- We can use google bigquery as the backend SQL engine with `-bbq` option.
+- We need to supply a credential json file of the GCP service account with the following permissions:
+  ```
+  bigquery.datasets.create
+  bigquery.datasets.get
+  bigquery.jobs.create
+  bigquery.jobs.get
+  bigquery.routines.create
+  bigquery.routines.delete
+  bigquery.routines.get
+  bigquery.routines.update
+  bigquery.tables.create
+  bigquery.tables.delete
+  bigquery.tables.get
+  bigquery.tables.getData
+  bigquery.tables.list
+  bigquery.tables.update
+  bigquery.tables.updateData
+  ```
+
+```shell
+# minimal command to run with bigquery engine
+# --vocabname is used as the dataset name
+wordleai-sql -bbq --bq_credential "path_to_credentials.json" --vocabname "wordle_dataset"
+```
 
 ## Other options
 

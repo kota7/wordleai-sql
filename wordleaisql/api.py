@@ -11,7 +11,7 @@ from .sqlite import WordleAISQLite
 
 def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_entropy"):
     print("")
-    print("Hi, this is %s" % ai.name)
+    print("Hi, this is %s." % ai.name)
     print("")
     ai.set_candidates()  # initialize all candidates
 
@@ -85,6 +85,7 @@ def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_
             ai.update(ans[1], ans[2])
         elif ans[0] == "e":
             break
+    print("Thank you!")
 
 
 def play(words: list):
@@ -135,7 +136,7 @@ def challenge(ai: WordleAI, max_round: int=20):
     if n_words > 5:
         tmp.append("...")
     print("")
-    print("Wordle game against %s level %s" % (ai.name, ai.strendth))
+    print("Wordle game against %s level %s" % (ai.name, ai.strength))
     print("%d words, e.g. %s" % (n_words, tmp))
     print("")
     print("Type your guess, or 'give up' to finish the game")
@@ -226,13 +227,13 @@ def main():
     parser.add_argument("--sqlitefile", default="wordleai.db", type=str, help="SQLite database file")
 
     parser.add_argument("--bq_credential", type=str, help="Credential json file for a GCP service client")
-    parser.add_argument("--bq_project", type=str, help="GCP project id")
+    parser.add_argument("--bq_project", type=str, help="GCP project id (if not supplied, inferred from the credential default)")
     parser.add_argument("--bq_location", type=str, help="GCP location")
     parser.add_argument("--partition_size", type=int, default=200, help="Partition size of judges table")
 
     parser.add_argument("--suggest_criterion", type=str, default="mean_entropy", choices=["max_n", "mean_n", "mean_entropy"],
                         help="Criterion for an AI to sort the word suggestions")
-    parser.add_argument("--num_suggest", type=int, default=10, help="Number of suggestion to print")
+    parser.add_argument("--num_suggest", type=int, default=20, help="Number of suggestion to print")
     parser.add_argument("--ai_strength", type=float, default=5, help="Strength of AI in [0, 10] in challenge mode")
     parser.add_argument("--decision_metric", type=str, default="mean_entropy", choices=["max_n", "mean_n", "mean_entropy"],
                         help="Criterion for an AI to use in challenge mode")
@@ -251,7 +252,16 @@ def main():
     words = default_wordle_vocab() if args.vocabfile is None else _read_vocabfile(args.vocabfile)
     #print(words)
     if args.play:
-        return play(words)
+        while True:
+            play(words)
+            while True:
+                ans = input("One more game? (y/n) > ")
+                ans = ans.strip().lower()[0:1]
+                if ans in ("y", "n"):
+                    break
+            if ans == "n":
+                print("Thank you!")
+                return
 
     if args.backend == "sqlite":
         ai = WordleAISQLite(args.vocabname, words, dbfile=args.sqlitefile, resetup=args.resetup,
@@ -269,6 +279,15 @@ def main():
         raise ValueError("Backend not supported '%s'" % args.backend)
 
     if args.challenge:
-        return challenge(ai, args.max_round)
+        while True:
+            challenge(ai, args.max_round)
+            while True:
+                ans = input("One more game? (y/n) > ")
+                ans = ans.strip().lower()[0:1]
+                if ans in ("y", "n"):
+                    break
+            if ans == "n":
+                print("Thank you!")
+                return
     else:
-        return interactive(ai)
+        return interactive(ai, num_suggest=args.num_suggest, default_criterion=args.suggest_criterion)
