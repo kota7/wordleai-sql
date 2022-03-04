@@ -37,9 +37,9 @@ def _create_dataset(client: bigquery.Client, datasetname: str, location: str=Non
     dataset = bigquery.dataset.Dataset(client.dataset(datasetname))
     if location is not None:
         dataset.location = location
-    client.create_dataset(dataset, exists_ok=True)
+    return client.create_dataset(dataset, exists_ok=True)
 
-def _setup(client: bigquery.Client, vocabname: str, words: list, project: str=None, location: str=None, partition_size: int=200):
+def _setup(client: bigquery.Client, vocabname: str, words: list, project: str=None, location: str="US", partition_size: int=200):
     assert len(words) == len(set(words)), "input_words must be unique"
     wordlens = set(len(w) for w in words)
     assert len(wordlens) == 1, "word length must be equal, but '{}'".format(wordlens)
@@ -51,7 +51,9 @@ def _setup(client: bigquery.Client, vocabname: str, words: list, project: str=No
     logger.info("Bigquery project: '%s', location: '%s'", project, location)
     
     logger.info("Creating dataset '%s'", vocabname)
-    _create_dataset(client, vocabname, location=location)
+    dataset = _create_dataset(client, vocabname, location=location)
+    #print(dataset)
+    #print(vars(dataset))
 
     schema = [bigquery.SchemaField("word", "STRING", mode="REQUIRED"),
               bigquery.SchemaField("partid", "INTEGER", mode="REQUIRED")]
@@ -284,7 +286,6 @@ class WordleAIBigquery(WordleAISQLite):
             If not supplied, use the default project of the client
         location (str):
             Location of the bigquery tables
-            If not supplied, the default location is used (perhaps 'US')
         partition_size (int):
             Partition size of judges table
             The rows of judges table are partitioned by a set of answer_word
@@ -302,7 +303,7 @@ class WordleAIBigquery(WordleAISQLite):
             Setup again if the vocabname already exists        
     """
     def __init__(self, vocabname: str, words: list or str=None,
-                 credential_jsonfile: str=None, project: str=None, location: str=None, partition_size: int=200,
+                 credential_jsonfile: str=None, project: str=None, location: str="US", partition_size: int=200,
                  decision_metric: str="mean_entropy", candidate_weight: float=0.3, strength: float=6,
                  resetup: bool=False, **kwargs):
         self.client = _make_client(credential_jsonfile, project=project, location=location)

@@ -231,7 +231,7 @@ def main():
 
     parser.add_argument("--bq_credential", type=str, help="Credential json file for a GCP service client")
     parser.add_argument("--bq_project", type=str, help="GCP project id (if not supplied, inferred from the credential default)")
-    parser.add_argument("--bq_location", type=str, help="GCP location")
+    parser.add_argument("--bq_location", type=str, default="US", help="GCP location")
     parser.add_argument("--partition_size", type=int, default=200, help="Partition size of judges table")
 
     parser.add_argument("--suggest_criterion", type=str, default="mean_entropy", choices=["max_n", "mean_n", "mean_entropy"],
