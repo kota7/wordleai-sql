@@ -3,7 +3,8 @@
 import random
 import re
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-from logging import basicConfig
+from logging import basicConfig, getLogger
+logger = getLogger(__name__)
 
 from .base import WordleAI
 from .utils import show_word_evaluations, default_wordle_vocab, _timereport, wordle_judge, decode_judgement, _read_vocabfile
@@ -221,10 +222,12 @@ def main():
     basicConfig(level=20, format="[%(levelname)s] %(message)s")
     parser = ArgumentParser(description="Wordle AI with SQL backend", formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-b", "--backend", type=str, default="sqlite", choices=["sqlite", "bq", "random"], help="AI type")
-    parser.add_argument("--vocabfile", type=str, help="Text file containing words")
     parser.add_argument("--vocabname", default="wordle", type=str, help="Name of vocabulary")
+    parser.add_argument("--vocabfile", type=str, help="Text file containing words. If not supplied, default wordle vocab is used")
     parser.add_argument("--resetup", action="store_true", help="Setup the vocabulary if already exists")
-    parser.add_argument("--sqlitefile", default="wordleai.db", type=str, help="SQLite database file")
+    parser.add_argument("--sqlitefile", type=str, 
+                        help=("SQLite database file. If not supplied, we first search env variable 'WORDLEAISQL_DBFILE'. "
+                              "If the env variable is not defined, then ./wordleai.db is used"))
 
     parser.add_argument("--bq_credential", type=str, help="Credential json file for a GCP service client")
     parser.add_argument("--bq_project", type=str, help="GCP project id (if not supplied, inferred from the credential default)")
@@ -267,12 +270,14 @@ def main():
         ai = WordleAISQLite(args.vocabname, words, dbfile=args.sqlitefile, resetup=args.resetup,
                             decision_metric=args.decision_metric, candidate_weight=args.candidate_weight, strength=args.ai_strength,
                             use_cpp=(not args.no_cpp), cpp_recompile=args.cpp_recompile, cpp_compiler=args.cpp_compiler)
+        logger.info("SQLite database: '%s', vocabname: '%s'", ai.dbfile, ai.vocabname)
     elif args.backend == "bq":
         from .bigquery import WordleAIBigquery
         ai = WordleAIBigquery(args.vocabname, words, resetup=args.resetup,
                               credential_jsonfile=args.bq_credential, project=args.bq_project,
                               location=args.bq_location, partition_size=args.partition_size,
                               decision_metric=args.decision_metric, candidate_weight=args.candidate_weight, strength=args.ai_strength)
+        logger.info("GCP project: '%s', location: '%s', vocabname: '%s'", ai.project, ai.location, ai.vocabname)
     elif args.backend == "random":
         ai = WordleAI(args.vocabname, words)
     else:

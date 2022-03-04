@@ -18,9 +18,10 @@ class WordleAI:
             If str, the path to a vocabulary file
             If list, the list of words
     """
-    def __init__(self, vocabname: str, words: list or str, **kwargs):
+    def __init__(self, vocabname: str, words: list or str=None, **kwargs):
         self.vocabname = vocabname
         self._vocabnames = [vocabname]  # no storage of other vocabs
+        assert words is not None, "`words` must be supplied to setup the vocab '{}'".format(vocabname)
         self._words = _read_vocabfile(words) if type(words) == str else _dedup(words)
         wordlens = set(len(w) for w in self.words)
         assert len(wordlens) == 1, "word length must be equal, but '{}'".format(wordlens)

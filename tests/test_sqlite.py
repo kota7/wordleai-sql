@@ -78,7 +78,39 @@ class TestSQLite(unittest.TestCase):
             self.assertEqual(type(word), str)
             self.assertTrue(word in ai.words)
 
-    def test_invalid(self):
+    def test_words_omit(self):
+        # we must supply words for new vocab
+        with TemporaryDirectory() as d:
+            def _create_ai(dbfile, words):
+                ai = WordleAISQLite("test", words, dbfile=dbfile)
+                return True
+            dbfile = os.path.join(d, "test.db")
+            self.assertRaises(Exception, _create_ai, dbfile, None, msg="new vocab requires word")  # need words for new vocab
+            self.assertTrue(_create_ai(dbfile, ["aaa", "bbb", "acb"]))  # words supplied
+            self.assertTrue(_create_ai(dbfile, None), msg="words can be omitted if vocab already exists")  # okay because vocab already exists
+
+    def test_dbfile(self):
+        # delete first
+        envname = "WORDLEAISQL_DBFILE"
+        envval = os.environ.get(envname)
+        if envval is not None:
+            del os[envname]
+        ai = WordleAISQLite("test", ["12", "31", "50"], dbfile=None)
+        self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath("./wordleai.db"), msg="dbfile in current dir")  # default value
+
+        with TemporaryDirectory() as d:
+            dbfile = os.path.join(d, "test.db")
+            os.environ[envname] = dbfile
+            ai = WordleAISQLite("test", ["12", "31", "50"], dbfile=None)
+            self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath(dbfile), msg="dbfile from envvar")  # envvar
+
+            dbfile2 = os.path.join(d, "test2.db")
+            ai = WordleAISQLite("test", ["12", "31", "50"], dbfile=dbfile2)
+            self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath(dbfile2), msg="dbfile explicit")  # specific var
+        if envval is not None:
+            os.environ[envname] = envval
+
+    def test_invalid_words(self):
         def _create_ai(words):
             with TemporaryDirectory() as d:
                 dbfile = os.path.join(d, "test.db")

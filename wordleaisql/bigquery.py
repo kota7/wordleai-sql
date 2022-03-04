@@ -275,6 +275,7 @@ class WordleAIBigquery(WordleAISQLite):
         words (str of list): 
             If str, the path to a vocabulary file
             If list, the list of words
+            Can be omitted if the vocabname is already in the database and resetup=False
         credential_jsonfile (str):
             Path to the service accound credential file
             If not supplied, authenticate with no file
@@ -300,13 +301,14 @@ class WordleAIBigquery(WordleAISQLite):
         resetup (bool):
             Setup again if the vocabname already exists        
     """
-    def __init__(self, vocabname: str, words: list or str,
+    def __init__(self, vocabname: str, words: list or str=None,
                  credential_jsonfile: str=None, project: str=None, location: str=None, partition_size: int=200,
                  decision_metric: str="mean_entropy", candidate_weight: float=0.3, strength: float=6,
                  resetup: bool=False, **kwargs):
         self.client = _make_client(credential_jsonfile, project=project, location=location)
         self.project = self.client.project
         self.location = self.client.location
+        logger.info("GCP project: '%s', location: '%s'", self.project, self.location)
 
         self.vocabname = vocabname
         self.decision_metric = decision_metric
@@ -317,6 +319,7 @@ class WordleAIBigquery(WordleAISQLite):
         self.decision_noise = math.pow(10, self.strength)
 
         if resetup or vocabname not in self.vocabnames:
+            assert words is not None, "`words` must be supplied to setup the vocab '{}'".format(vocabname)
             words = _read_vocabfile(words) if type(words) == str else _dedup(words)
             with _timereport("Setup tables for vocabname '%s'" % vocabname):
                 _setup(client=self.client, vocabname=self.vocabname, words=words,

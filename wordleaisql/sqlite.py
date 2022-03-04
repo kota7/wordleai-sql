@@ -9,6 +9,7 @@ Tables are named by the following convention:
 {vocabname}_judges  : contains judge results for all word pairs
 """
 
+import os
 import sqlite3
 import math
 import random
@@ -101,8 +102,10 @@ def _vocabnames(dbfile: str)-> list:
         c = conn.cursor()
         c.execute("SELECT name FROM sqlite_master")
         tables = [row[0] for row in c]
-        tables = [t[:-6] for t in tables if t.endswith("_words")]
-    return tables
+        t1 = [t[:-6] for t in tables if t.endswith("_words")]
+        t2 = [t[:-7] for t in tables if t.endswith("_judges")]
+        out = list(set(t1) | set(t2))
+    return out
 
 def _words(dbfile: str, vocabname: str)-> list:
     with sqlite3.connect(dbfile) as conn:
@@ -124,8 +127,11 @@ class WordleAISQLite(WordleAI):
         words (str of list): 
             If str, the path to a vocabulary file
             If list, the list of words
+            Can be omitted if the vocabname is already in the database and resetup=False
         dbfile (str):
             SQLite database file
+            If not supplied, use environment variable `WORDLEAISQL_DBFILE` if exists,
+            otherwise './wordleai.db' in the current directory is used
 
         decision_metric (str):
             The criteria to pick a word
@@ -145,10 +151,16 @@ class WordleAISQLite(WordleAI):
         resetup (bool):
             Setup again if the vocabname already exists
     """
-    def __init__(self, vocabname: str, words: list or str, dbfile: str="./wordleai.db",
+    def __init__(self, vocabname: str, words: list or str=None, dbfile: str=None,
                  decision_metric: str="mean_entropy", candidate_weight: float=0.3, strength: float=6,
                  use_cpp: bool=True, cpp_recompile: bool=False, cpp_compiler: str=None, resetup: bool=False, **kwargs):
+        if dbfile is None:
+            dbfile = os.environ.get("WORDLEAISQL_DBFILE")
+            if dbfile is None:
+                dbfile = "./wordleai.db"
+        os.makedirs(os.path.dirname(os.path.abspath(dbfile)), exist_ok=True)
         self.dbfile = dbfile
+        logger.info("SQLite database: '%s'", self.dbfile)
         self.vocabname = vocabname
         self.decision_metric = decision_metric
         self.candidate_weight = candidate_weight
@@ -158,6 +170,7 @@ class WordleAISQLite(WordleAI):
         self.decision_noise = math.pow(10, self.strength)
 
         if resetup or (vocabname not in self.vocabnames):
+            assert words is not None, "`words` must be supplied to setup the vocab '{}'".format(vocabname)
             words = _read_vocabfile(words) if type(words) == str else _dedup(words)
             with _timereport("Setup tables for vocabname '%s'" % vocabname):
                 _setup(dbfile=dbfile, vocabname=vocabname, words=words, use_cpp=use_cpp, recompile=cpp_recompile, compiler=cpp_compiler)
