@@ -8,7 +8,7 @@ with open(readmefile) as f:
 
 setup(
     name='wordleaisql',
-    version='0.1.5',
+    version='0.1.6',
     description='Wordle AI with SQL Backend',
     long_description=readme,
     long_description_content_type="text/markdown",
