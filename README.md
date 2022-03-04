@@ -15,9 +15,9 @@ python wordleai-sql.py
 ```
 
 Note.
-- The program creates a SQLite file named "wordle-ai.db" in the working directory, whose size typically is about 8.4GB.
+- By default, the program uses SQLite as the backend engine and creates a dabase file named "wordleai.db" in the working directory. For the default vocabfile of about 13K words, the file size is about 8.4GB.
 - For the first run, it will take a while to set up the database.
-- The setup time will be significantly reduced if c++ compiler command (`g++` or `clang++`) is available.
+- The setup time will be significantly reduced if c++ compiler command (e.g `g++` or `clang++`) is available.
 
 
 ## Session example
@@ -196,7 +196,7 @@ wordleai-sql --dbfile custom-wordle.db --vocabfile my-vocab.txt
 ```shell
 # minimal command to run with bigquery engine
 # --vocabname is used as the dataset name
-wordleai-sql -bbq --bq_credential "path_to_credentials.json" --vocabname "wordle_dataset"
+wordleai-sql -bbq --bq_credential "gcp_credentials.json" --vocabname "wordle_dataset"
 ```
 
 ## Other options
