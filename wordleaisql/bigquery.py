@@ -41,6 +41,9 @@ def _create_dataset(client: bigquery.Client, datasetname: str, location: str=Non
 
 def _setup(client: bigquery.Client, vocabname: str, words: list, project: str=None, location: str=None, partition_size: int=200):
     assert len(words) == len(set(words)), "input_words must be unique"
+    wordlens = set(len(w) for w in words)
+    assert len(wordlens) == 1, "word length must be equal, but '{}'".format(wordlens)
+
     if project is None:
         project = client.project
     if location is None:

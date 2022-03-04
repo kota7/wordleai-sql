@@ -22,6 +22,9 @@ class WordleAI:
         self.vocabname = vocabname
         self._vocabnames = [vocabname]  # no storage of other vocabs
         self._words = _read_vocabfile(words) if type(words) == str else _dedup(words)
+        wordlens = set(len(w) for w in self.words)
+        assert len(wordlens) == 1, "word length must be equal, but '{}'".format(wordlens)
+
         self.set_candidates()
     
     @property

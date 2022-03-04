@@ -22,6 +22,8 @@ from .base import WordleAI
 
 def _setup(dbfile: str, vocabname: str, words: list, use_cpp: bool=True, recompile: bool=False, compiler: str=None):
     assert len(words) == len(set(words)), "input_words must be unique"
+    wordlens = set(len(w) for w in words)
+    assert len(wordlens) == 1, "word length must be equal, but '{}'".format(wordlens)
     with sqlite3.connect(dbfile) as conn:
         c = conn.cursor()
         c.execute("PRAGMA journal_mode=OFF")  # disable rollback to save time        
