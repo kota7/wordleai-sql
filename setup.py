@@ -12,7 +12,7 @@ setup(
     description='Wordle AI with SQL Backend',
     long_description=readme,
     long_description_content_type="text/markdown",
-    packages=find_packages(),
+    packages=['wordleaisql'],
     install_requires=['tqdm'],
     #test_require=[],
     package_data={"wordleaisql": ["wordle-judage-all.cpp", "wordle-vocab.txt"]},
