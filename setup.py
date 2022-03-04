@@ -15,9 +15,8 @@ setup(
     packages=find_packages(),
     install_requires=['tqdm'],
     #test_require=[],
-    package_data={"wordleaisql": ["wordle-all-pairs.cpp", "wordle-vocab.txt"]},
-    entry_points={'console_scripts': ['wordleai-sql=wordleaisql.wordleai:main',
-                                      'wordleai=wordleaisql.api:main']},
+    package_data={"wordleaisql": ["wordle-judage-all.cpp", "wordle-vocab.txt"]},
+    entry_points={'console_scripts': ['wordleai-sql=wordleaisql.api:main']},
     
     classifiers=[
         # How mature is this project? Common values are

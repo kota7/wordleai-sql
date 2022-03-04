@@ -130,6 +130,8 @@ def _all_wordle_judges(words: list):
         yield (input_word, answer_word, response)
 
 def _compile_cpp(scriptfile: str, execfile: str, md5file: str, compiler: str=None, recompile: bool=False)-> bool:
+    # Returns true is successful
+
     # we keep the md5 info of the source file to detect any changes
     # and compile the file only if the hash is not changed
     os.makedirs(os.path.dirname(execfile), exist_ok=True)
@@ -149,6 +151,7 @@ def _compile_cpp(scriptfile: str, execfile: str, md5file: str, compiler: str=Non
     
     if os.path.isfile(execfile) and (not script_updated) and (not recompile):
         logger.info("Compiled file ('%s') already exists and source has no update", execfile)
+        return True
     else:
         # compile cpp script
         if compiler is None:
@@ -175,7 +178,21 @@ def _compile_cpp(scriptfile: str, execfile: str, md5file: str, compiler: str=Non
             return False
     return True
 
-def _all_wordle_judges_cpp(words: list, recompile: bool=False, compiler: str=None):
+def _prep_cpp(words: list, recompile: bool=False, compiler: str=None)-> str:
+    # Returns:
+    #   compiled executable path if cpp enhancement is available
+    #   none otherwise
+
+    # check if all words are ascii. otherwise the current C++ script is not applicable
+    def _ascii_no_space(letter):
+        if ord(letter) > 255 or ord(letter) < 1:
+            return False
+        return True
+    for word in words:
+        if not all(_ascii_no_space(letter) for letter in word):
+            logger.info("Word contains non-ascii letter '%s'", word)
+            return None
+
     scriptfile = _package_data_file("wordle-judge-all.cpp")
     #print(scriptfile)
     #execfile = os.path.abspath(os.path.join(os.path.dirname(__file__), "wordle-all-pairs.o"))
@@ -183,8 +200,11 @@ def _all_wordle_judges_cpp(words: list, recompile: bool=False, compiler: str=Non
     md5file = os.path.expanduser("~/.worldaisql/wordle-all-pairs.cpp.md5sum")
 
     if not _compile_cpp(scriptfile, execfile, md5file, compiler=compiler, recompile=recompile):
-        raise RuntimeError("C++ compile failed")
+        logger.info("C++ compile failed")
+        return None
+    return execfile
 
+def _all_wordle_judges_cpp(words: list, execfile: str):
     with TemporaryDirectory() as tmpdir:
         # create input file for the c++ script
         infile = os.path.join(tmpdir, "infile.txt")
@@ -205,10 +225,12 @@ def _all_wordle_judges_cpp(words: list, recompile: bool=False, compiler: str=Non
             for line in tqdm(f, total=total):
                 yield line.strip().split(" ")
     
-def all_wordle_judges(words: list, use_cpp: bool=True):
+def all_wordle_judges(words: list, use_cpp: bool=True, recompile: bool=False, compiler: str=None):
     if use_cpp:
-        try:
-            return _all_wordle_judges_cpp(words)
-        except Exception as e:
-            logger.warning("C++ enhancement is not available, pure python implementation is used")
+        execfile = _prep_cpp(words, recompile, compiler)
+        if execfile is not None:
+            return _all_wordle_judges_cpp(words, execfile)
+        else:
+            logger.warning("C++ enhancement is not available, pure python implementation is used instead")
+
     return _all_wordle_judges(words)

@@ -10,6 +10,9 @@ from .utils import show_word_evaluations, default_wordle_vocab, _timereport, wor
 from .sqlite import WordleAISQLite
 
 def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_entropy"):
+    print("")
+    print("Hi, this is %s" % ai.name)
+    print("")
     ai.set_candidates()  # initialize all candidates
 
     def _receive_input():
@@ -30,8 +33,8 @@ def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_
             ans = input("\n".join(message))
             ans = re.sub(r"\s+", " ", ans.strip())
             ans = ans.split(" ")
-            if len(ans) <= 0:
-                continue
+            if len(ans) <= 0: continue
+            if len(ans[0]) <= 0: continue
 
             if ans[0][0] == "s":
                 if len(ans) > 1:
@@ -132,7 +135,7 @@ def challenge(ai: WordleAI, max_round: int=20):
     if n_words > 5:
         tmp.append("...")
     print("")
-    print("Wordle game against AI")
+    print("Wordle game against %s level %s" % (ai.name, ai.strendth))
     print("%d words, e.g. %s" % (n_words, tmp))
     print("")
     print("Type your guess, or 'give up' to finish the game")
@@ -221,6 +224,12 @@ def main():
     parser.add_argument("--vocabname", default="wordle", type=str, help="Name of vocabulary")
     parser.add_argument("--resetup", action="store_true", help="Setup the vocabulary if already exists")
     parser.add_argument("--sqlitefile", default="wordleai.db", type=str, help="SQLite database file")
+
+    parser.add_argument("--bq_credential", type=str, help="Credential json file for a GCP service client")
+    parser.add_argument("--bq_project", type=str, help="GCP project id")
+    parser.add_argument("--bq_location", type=str, help="GCP location")
+    parser.add_argument("--partition_size", type=int, default=200, help="Partition size of judges table")
+
     parser.add_argument("--suggest_criterion", type=str, default="mean_entropy", choices=["max_n", "mean_n", "mean_entropy"],
                         help="Criterion for an AI to sort the word suggestions")
     parser.add_argument("--num_suggest", type=int, default=10, help="Number of suggestion to print")
@@ -238,19 +247,26 @@ def main():
     parser.add_argument("--cpp_compiler", type=str, help="Command name of the C++ compiler")
     
     args = parser.parse_args()
-
+    #print(args)
     words = default_wordle_vocab() if args.vocabfile is None else _read_vocabfile(args.vocabfile)
+    #print(words)
     if args.play:
         return play(words)
-        
+
     if args.backend == "sqlite":
         ai = WordleAISQLite(args.vocabname, words, dbfile=args.sqlitefile, resetup=args.resetup,
-                            decision_metric=args.decision_metric, candidate_weight=args.candidate_weight,
+                            decision_metric=args.decision_metric, candidate_weight=args.candidate_weight, strength=args.ai_strength,
                             use_cpp=(not args.no_cpp), cpp_recompile=args.cpp_recompile, cpp_compiler=args.cpp_compiler)
+    elif args.backend == "bq":
+        from .bigquery import WordleAIBigquery
+        ai = WordleAIBigquery(args.vocabname, words, resetup=args.resetup,
+                              credential_jsonfile=args.bq_credential, project=args.bq_project,
+                              location=args.bq_location, partition_size=args.partition_size,
+                              decision_metric=args.decision_metric, candidate_weight=args.candidate_weight, strength=args.ai_strength)
     elif args.backend == "random":
         ai = WordleAI(args.vocabname, words)
     else:
-        raise NotImplementedError(args.backend)
+        raise ValueError("Backend not supported '%s'" % args.backend)
 
     if args.challenge:
         return challenge(ai, args.max_round)

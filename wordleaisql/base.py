@@ -7,7 +7,7 @@ class WordleAI:
     """
     Base Wordle AI class.
     
-    - Keeps words as instance variables
+    - Keeps words as the instance variable
     - Evaluation result is random
     - Pick a word in the candidate list randomly
 
@@ -23,6 +23,10 @@ class WordleAI:
         self._vocabnames = [vocabname]  # no storage of other vocabs
         self._words = _read_vocabfile(words) if type(words) == str else _dedup(words)
         self.set_candidates()
+    
+    @property
+    def name(self)-> str:
+        return "Wordle AI (random)"
 
     @property
     def vocabnames(self)-> list:

@@ -1,5 +1,14 @@
 # -*- coding: utf-8 -*-
 
+"""
+SQLite backend.
+
+Tables are named by the following convention:
+
+{vocabname}_words   : contains all words
+{vocabname}_judges  : contains judge results for all word pairs
+"""
+
 import sqlite3
 import math
 import random
@@ -9,6 +18,7 @@ logger = getLogger(__name__)
 
 from .utils import all_wordle_judges, _timereport, _dedup, WordEvaluation, wordle_judge, encode_judgement, _read_vocabfile
 from .base import WordleAI
+
 
 def _setup(dbfile: str, vocabname: str, words: list, use_cpp: bool=True, recompile: bool=False, compiler: str=None):
     assert len(words) == len(set(words)), "input_words must be unique"
@@ -24,7 +34,7 @@ def _setup(dbfile: str, vocabname: str, words: list, use_cpp: bool=True, recompi
         with _timereport("precomputing wordle judges"):
             c.execute('DROP TABLE IF EXISTS "{name}_judges"'.format(name=vocabname))
             c.execute('CREATE TABLE "{name}_judges" (input_word TEXT, answer_word TEXT, judge INT)'.format(name=vocabname))
-            params = all_wordle_judges(words, use_cpp=use_cpp)
+            params = all_wordle_judges(words, use_cpp=use_cpp, recompile=recompile, compiler=compiler)
             c.executemany('INSERT INTO "{name}_judges" VALUES (?,?,?)'.format(name=vocabname), params)
 
         with _timereport("creating indices"):
@@ -114,31 +124,46 @@ class WordleAISQLite(WordleAI):
             If list, the list of words
         dbfile (str):
             SQLite database file
-        resetup (bool):
-            Setup again if the vocabname already exists
+
+        decision_metric (str):
+            The criteria to pick a word
+            Either 'max_n', 'mean_n', of 'mean_entropy'
+        candidate_weight (float):
+            The weight added to the answer candidate word when picking a word
+        strength (float):
+            AI strength in [0, 10]
+
         use_cpp (bool):
             Use C++ code to precompute wodle judgements when available
         cpp_recompile (bool):
             Compile the C++ code again if the source code has no change
         cpp_compiler (str):
             Command name of the C++ compiler. If None, 'g++' and 'clang++' are searched
+
+        resetup (bool):
+            Setup again if the vocabname already exists
     """
     def __init__(self, vocabname: str, words: list or str, dbfile: str="./wordleaisql.db",
                  decision_metric: str="mean_entropy", candidate_weight: float=0.3, strength: float=6,
-                 resetup: bool=False, use_cpp: bool=True, cpp_recompile: bool=False, cpp_compiler: str=None, **kwargs):
+                 use_cpp: bool=True, cpp_recompile: bool=False, cpp_compiler: str=None, resetup: bool=False, **kwargs):
         self.dbfile = dbfile
         self.vocabname = vocabname
         self.decision_metric = decision_metric
         self.candidate_weight = candidate_weight
-        self.strength = strength
+        self.strength = min(max(5 - strength, -5), 5)
         # strength is linearly converted to the power of noise: 0 -> +5, 10 -> -5
         # larger noise, close to random decision
-        self.decision_noise = math.pow(10, min(max(5 - strength, -5), 5))
+        self.decision_noise = math.pow(10, self.strength)
         self._words = _read_vocabfile(words) if type(words) == str else _dedup(words)
-        if resetup or vocabname not in self.vocabnames:
+        print(resetup)
+        if resetup or (vocabname not in self.vocabnames):
             with _timereport("Setup tables for vocabname '%s'" % vocabname):
                 _setup(dbfile, vocabname, words, use_cpp=use_cpp, recompile=cpp_recompile, compiler=cpp_compiler)
         self.set_candidates()
+
+    @property
+    def name(self)-> str:
+        return "Wordle AI (SQLite backend)"
 
     @property
     def vocabnames(self)-> list:
