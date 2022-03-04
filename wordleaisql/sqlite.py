@@ -164,10 +164,10 @@ class WordleAISQLite(WordleAI):
         self.vocabname = vocabname
         self.decision_metric = decision_metric
         self.candidate_weight = candidate_weight
-        self.strength = min(max(5 - strength, -5), 5)
+        self.strength = min(max(strength, 0), 10)  # clip to [0, 10]
         # strength is linearly converted to the power of noise: 0 -> +5, 10 -> -5
         # larger noise, close to random decision
-        self.decision_noise = math.pow(10, self.strength)
+        self.decision_noise = math.pow(10, 5-self.strength)
 
         if resetup or (vocabname not in self.vocabnames):
             assert words is not None, "`words` must be supplied to setup the vocab '{}'".format(vocabname)
