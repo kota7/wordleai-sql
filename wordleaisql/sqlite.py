@@ -145,7 +145,7 @@ class WordleAISQLite(WordleAI):
         resetup (bool):
             Setup again if the vocabname already exists
     """
-    def __init__(self, vocabname: str, words: list or str, dbfile: str="./wordleaisql.db",
+    def __init__(self, vocabname: str, words: list or str, dbfile: str="./wordleai.db",
                  decision_metric: str="mean_entropy", candidate_weight: float=0.3, strength: float=6,
                  use_cpp: bool=True, cpp_recompile: bool=False, cpp_compiler: str=None, resetup: bool=False, **kwargs):
         self.dbfile = dbfile
