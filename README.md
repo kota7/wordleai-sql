@@ -157,14 +157,14 @@ See also the simulation results for a comparison of the criteria (notebook at [s
 ## Using a custom answer set
 
 - By default, the program uses "vocab.txt" as the word candidate list, which perhaps is compatible with [New York Times version](https://www.nytimes.com/games/wordle/index.html)
-- You may give a different list with `--vocabfile` option. You should also specify `--dbfile` option other than the default ("wordle-ai.db") because the database setup would be overwritten.
+- You may give a different list with `--vocabfile` option. You should also specify `--vocabname` option other than the default ("wordle") because the database setup result would be overwritten.
 - The file should contain words of the same length, separated by the line break ("\n").
-- Although not tested, the program would work with words containing multibyte characters (with utf8 encoding) or digits.
+- Although not tested thoroughly, the program would work with words containing multibyte characters (with utf8 encoding) or digits.
 - See `vocab-examples/` folder for examples.
 
 ```shell
 # Example
-wordleai-sql --dbfile custom-wordle.db --vocabfile my-vocab.txt
+wordleai-sql --vocabname myvocab --vocabfile my-vocab.txt
 ```
 
 ## Play and challenge mode
