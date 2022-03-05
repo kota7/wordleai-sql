@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+"""
+This program simulates the wordle solver algorithms with all wordle words.
+Note that this program may take very long time:
+  40 hours on a laptop
+   3 hours on c5a.24xlarge AWS EC2 instance (96 vVPU, 192 GiB memory)
+"""
+
 import os
 import json
 import random
