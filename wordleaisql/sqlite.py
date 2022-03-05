@@ -30,9 +30,10 @@ def _setup(dbfile: str, vocabname: str, words: list, use_cpp: bool=True, recompi
         c.execute("PRAGMA journal_mode=OFF")  # disable rollback to save time        
         
         c.execute('DROP TABLE IF EXISTS "{name}_words"'.format(name=vocabname))
-        c.execute('CREATE TABLE "{name}_words" (word TEXT)'.format(name=vocabname))
+        c.execute('CREATE TABLE "{name}_words" (word TEXT PRIMARY KEY)'.format(name=vocabname))
         params = [(w,) for w in words]
         c.executemany('INSERT INTO "{name}_words" VALUES (?)'.format(name=vocabname), params)
+        c.execute('CREATE INDEX "{name}_words_idx" ON "{name}_words" (word)'.format(name=vocabname))
 
         with _timereport("precomputing wordle judges"):
             c.execute('DROP TABLE IF EXISTS "{name}_judges"'.format(name=vocabname))
@@ -47,7 +48,7 @@ def _setup(dbfile: str, vocabname: str, words: list, use_cpp: bool=True, recompi
 
 def _evaluate(dbfile: str, vocabname: str, top_k: int=20, criterion: str="mean_entropy", candidates: list=None)-> list:
     with sqlite3.connect(dbfile) as conn:
-        conn.create_function("log2", 1, math.log2)        
+        conn.create_function("log2", 1, math.log2)
         c = conn.cursor()
         # find the number of all words and compare with the number of candidates
         # if they are the same, then we do not need to filter answer_word
@@ -104,7 +105,7 @@ def _vocabnames(dbfile: str)-> list:
         tables = [row[0] for row in c]
         t1 = [t[:-6] for t in tables if t.endswith("_words")]
         t2 = [t[:-7] for t in tables if t.endswith("_judges")]
-        out = list(set(t1) | set(t2))
+        out = list(set(t1) & set(t2))  # we need both _words and _judges tables
     return out
 
 def _words(dbfile: str, vocabname: str)-> list:
@@ -187,10 +188,10 @@ class WordleAISQLite(WordleAI):
         return _vocabnames(self.dbfile)
 
     @property
-    def words(self)-> set:
+    def words(self)-> list:
         """All words that can be inputted"""
         return _words(self.dbfile, self.vocabname)
-    
+
     def evaluate(self, top_k: int=20, criterion: str="mean_entropy")-> list:
         """
         Evaluate input words and return the top ones in accordance with the given criterion
