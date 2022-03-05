@@ -94,7 +94,7 @@ class TestSQLite(unittest.TestCase):
         envname = "WORDLEAISQL_DBFILE"
         envval = os.environ.get(envname)
         if envval is not None:
-            del os[envname]
+            del os.environ[envname]
         ai = WordleAISQLite("test", ["12", "31", "50"], dbfile=None)
         self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath("./wordleai.db"), msg="dbfile in current dir")  # default value
 
