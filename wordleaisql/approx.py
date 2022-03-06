@@ -32,8 +32,8 @@ def _setup(dbfile: str, vocabname: str, words: list, use_cpp: bool=True, recompi
         c.execute('CREATE INDEX "{name}_words_approx_idx" ON "{name}_words_approx" (word)'.format(name=vocabname))
         conn.commit()
 
-def _evaluate(dbfile: str, vocabname: str, top_k: int=20, criterion: str="mean_entropy",
-              candidates: list=None, approxlevel: int=1000000)-> list:
+def _evaluate(dbfile: str, vocabname: str, top_k: int=20, criterion: str="mean_entropy", candidates: list=None,
+              approxlevel: int=1000000)-> list:
     allwords = _words(dbfile, vocabname)  # get all words
     if candidates is None:
         candidates = allwords

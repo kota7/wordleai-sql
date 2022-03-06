@@ -10,6 +10,7 @@ from .base import WordleAI
 from .utils import show_word_evaluations, default_wordle_vocab, _timereport, wordle_judge, decode_judgement, _read_vocabfile
 from .sqlite import WordleAISQLite
 from .approx import WordleAIApprox
+from . import __version__
 
 def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_entropy"):
     print("")
@@ -251,8 +252,14 @@ def main():
     parser.add_argument("--no_cpp", action="store_true", help="Not to use C++ script even if available")
     parser.add_argument("--cpp_recompile", action="store_true", help="Compile the C++ script again even if the source script is not updated")
     parser.add_argument("--cpp_compiler", type=str, help="Command name of the C++ compiler")
-    
+
+    parser.add_argument("--version", action="store_true", help="Show the program version")
+
     args = parser.parse_args()
+    if args.version:
+        print("wordleaisql v%s" % __version__)
+        return
+
     #print(args)
     words = default_wordle_vocab() if args.vocabfile is None else _read_vocabfile(args.vocabfile)
     #print(words)
