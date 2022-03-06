@@ -96,8 +96,13 @@ class TestApprox(unittest.TestCase):
         envval = os.environ.get(envname)
         if envval is not None:
             del os.environ[envname]
-        ai = WordleAIApprox("test", ["12", "31", "50"], dbfile=None)
-        self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath("./wordleai.db"), msg="dbfile in current dir")  # default value
+
+        with TemporaryDirectory() as d:
+            curdir = os.getcwd()
+            os.chdir(d)
+            ai = WordleAIApprox("test", ["12", "31", "50"], dbfile=None)
+            self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath("./wordleai.db"), msg="dbfile in current dir")
+            os.chdir(curdir)
 
         with TemporaryDirectory() as d:
             dbfile = os.path.join(d, "test.db")
