@@ -35,13 +35,13 @@ def _setup(dbfile: str, vocabname: str, words: list, use_cpp: bool=True, recompi
         c.executemany('INSERT INTO "{name}_words" VALUES (?)'.format(name=vocabname), params)
         c.execute('CREATE INDEX "{name}_words_idx" ON "{name}_words" (word)'.format(name=vocabname))
 
-        with _timereport("precomputing wordle judges"):
+        with _timereport("Precomputing wordle judges"):
             c.execute('DROP TABLE IF EXISTS "{name}_judges"'.format(name=vocabname))
             c.execute('CREATE TABLE "{name}_judges" (input_word TEXT, answer_word TEXT, judge INT)'.format(name=vocabname))
             params = all_wordle_judges(words, use_cpp=use_cpp, recompile=recompile, compiler=compiler)
             c.executemany('INSERT INTO "{name}_judges" VALUES (?,?,?)'.format(name=vocabname), params)
 
-        with _timereport("creating indices"):
+        with _timereport("Creating indices"):
             c.execute('CREATE INDEX "{name}_judge_idx" ON "{name}_judges" (input_word, judge)'.format(name=vocabname))
             c.execute('CREATE INDEX "{name}_judge_idx2" ON "{name}_judges" (answer_word)'.format(name=vocabname))
         conn.commit()
