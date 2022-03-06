@@ -15,7 +15,8 @@ class TestBase(unittest.TestCase):
         self.assertEqual(set(words), set(ai.words))
 
         # initial candidates must equal all words
-        ai.set_candidates()            
+        #ai.set_candidates()
+        ai.clear_info()
         self.assertEqual(set(words), set(ai.candidates))
 
         results = ai.evaluate(criterion="max_n")

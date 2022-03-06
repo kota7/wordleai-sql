@@ -22,7 +22,7 @@ try:
     from google.cloud.exceptions import NotFound, Forbidden
     #from google.cloud.bigquery import dbapi
 except (ModuleNotFoundError, ImportError) as e:
-    raise RuntimeError("Import failed: '%s'. Please install bigquery module by `pip install google-cloud-bigquery`")
+    raise RuntimeError("Import failed: '{}'. Please install bigquery module by `pip install google-cloud-bigquery`".format(e))
 
 from .utils import _timereport, WordEvaluation, _read_vocabfile, _dedup
 from .sqlite import WordleAISQLite
@@ -325,7 +325,9 @@ class WordleAIBigquery(WordleAISQLite):
             with _timereport("Setup tables for vocabname '%s'" % vocabname):
                 _setup(client=self.client, vocabname=self.vocabname, words=words,
                        project=self.project, location=self.location, partition_size=partition_size)
-        self.set_candidates()
+        #self.set_candidates()
+        self._info = []                  # infomation of the judge results
+        self._nonanswer_words = set([])  # words that cannot become an answer
 
     @property
     def name(self)-> str:

@@ -16,7 +16,8 @@ def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_
     print("")
     print("Hi, this is %s." % ai.name)
     print("")
-    ai.set_candidates()  # initialize all candidates
+    #ai.set_candidates()  # initialize all candidates
+    ai.clear_info()
 
     def _receive_input():
         while True:
@@ -64,8 +65,9 @@ def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_
             
     while True:
         maxn = 10  # max number of candidates to show
-        n_remain = len(ai.candidates)
-        remain = ai.candidates[:maxn]
+        cur_candidates = ai.candidates
+        n_remain = len(cur_candidates)
+        remain = cur_candidates[:maxn]
         if n_remain > maxn:
             remain.append("...")
         if n_remain > 1:
@@ -131,7 +133,8 @@ def play(words: list):
             return True
 
 def challenge(ai: WordleAI, max_round: int=20):
-    ai.set_candidates()
+    #ai.set_candidates()
+    ai.clear_info()
     n_ans = len(ai.candidates)
     n_words = len(ai.words)
 

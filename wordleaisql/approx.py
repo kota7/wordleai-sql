@@ -228,7 +228,9 @@ class WordleAIApprox(WordleAISQLite):
             logger.info("Setup tables for vocabname '%s'", vocabname)
             _setup(dbfile=dbfile, vocabname=vocabname, words=words)
 
-        self.set_candidates()
+        self._info = []                  # infomation of the judge results
+        self._nonanswer_words = set([])  # words that cannot become an answer
+        #self.set_candidates()
 
     @property
     def name(self)-> str:
