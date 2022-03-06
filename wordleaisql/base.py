@@ -26,7 +26,8 @@ class WordleAI:
         wordlens = set(len(w) for w in self.words)
         assert len(wordlens) == 1, "word length must be equal, but '{}'".format(wordlens)
 
-        self.set_candidates()
+        self._info = []  # infomation of the judge result
+        self._nonanswer_words = set([])  # words that cannot become an answer
 
     @property
     def name(self)-> str:
@@ -45,17 +46,41 @@ class WordleAI:
     @property
     def candidates(self)-> list:
         """Subset of answer words filtered by given information"""
-        return self._candidates
+        candidates = [w for w in self.words if w not in self.nonanswer_words]
+        def _keep(candidate):
+            for input_word, encoded_result in self.info:
+                if wordle_judge(input_word, candidate) != int(encoded_result):
+                    return False
+            return True
+        candidates = [c for c in candidates if _keep(c)]
+        return candidates
+        #return self._candidates
 
-    def set_candidates(self, candidates: list=None):
-        """
-        Set the candidate words.
-        If candidates is none, then reset to the all answer words.
-        """
-        if candidates is not None:
-            self._candidates = _dedup(candidates)
-        else:
-            self._candidates = self.words.copy()
+    @property
+    def info(self)-> list:
+        """List of (input_word, decoded_result)"""
+        return self._info
+
+    def clear_info(self):
+        self.info.clear()
+
+    @property
+    def nonanswer_words(self)-> set:
+        """Set of words that cannot become an answer"""
+        return self._nonanswer_words
+
+    def remove_from_answers(self, excluded_words: list):
+        self._nonanswer_words |= set(excluded_words)
+
+    # def set_candidates(self, candidates: list=None):
+    #     """
+    #     Set the candidate words.
+    #     If candidates is none, then reset to the all answer words.
+    #     """
+    #     if candidates is not None:
+    #         self._candidates = _dedup(candidates)
+    #     else:
+    #         self._candidates = self.words.copy()
 
     def evaluate(self, top_k: int=20, criterion: str="mean_entropy")-> list:
         """
@@ -79,12 +104,13 @@ class WordleAI:
 
     def update(self, input_word: str, judge_result: int or str):
         """
-        Update candidate words by the judge result.
+        Update information on a judge result.
 
         Judge result is decoded, i.e. human-interpretable one such as '22001'
         """
-        self.set_candidates([c for c in self.candidates
-                             if wordle_judge(input_word, c) == encode_judgement(int(judge_result))])
+        # self.set_candidates([c for c in self.candidates
+        #                      if wordle_judge(input_word, c) == encode_judgement(int(judge_result))])
+        self.info.append((input_word, encode_judgement(int(judge_result))))
 
     def pick_word(self, criterion: str="mean_entropy")-> str:
         """Pick an input word"""
