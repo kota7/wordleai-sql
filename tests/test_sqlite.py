@@ -95,8 +95,15 @@ class TestSQLite(unittest.TestCase):
         envval = os.environ.get(envname)
         if envval is not None:
             del os.environ[envname]
-        ai = WordleAISQLite("test", ["12", "31", "50"], dbfile=None)
-        self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath("./wordleai.db"), msg="dbfile in current dir")  # default value
+
+        with TemporaryDirectory() as d:
+            curdir = os.getcwd()
+            try:
+                os.chdir(d)
+                ai = WordleAISQLite("test", ["12", "31", "50"], dbfile=None)
+                self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath("./wordleai.db"), msg="dbfile in current dir")
+            finally:
+                os.chdir(curdir)
 
         with TemporaryDirectory() as d:
             dbfile = os.path.join(d, "test.db")
@@ -107,6 +114,7 @@ class TestSQLite(unittest.TestCase):
             dbfile2 = os.path.join(d, "test2.db")
             ai = WordleAISQLite("test", ["12", "31", "50"], dbfile=dbfile2)
             self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath(dbfile2), msg="dbfile explicit")  # specific var
+        # clean up
         if envval is not None:
             os.environ[envname] = envval
 
