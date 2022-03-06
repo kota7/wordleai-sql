@@ -19,7 +19,7 @@ logger = getLogger(__name__)
 from .utils import WordEvaluation, wordle_judge, _read_vocabfile, _dedup
 from .sqlite import WordleAISQLite
 
-def _setup(dbfile: str, vocabname: str, words: list, use_cpp: bool=True, recompile: bool=False, compiler: str=None):
+def _setup(dbfile: str, vocabname: str, words: list):
     assert len(words) == len(set(words)), "input_words must be unique"
     wordlens = set(len(w) for w in words)
     assert len(wordlens) == 1, "word length must be equal, but '{}'".format(wordlens)
@@ -196,20 +196,13 @@ class WordleAIApprox(WordleAISQLite):
         strength (float):
             AI strength in [0, 10]
 
-        use_cpp (bool):
-            Use C++ code to precompute wodle judgements when available
-        cpp_recompile (bool):
-            Compile the C++ code again if the source code has no change
-        cpp_compiler (str):
-            Command name of the C++ compiler. If None, 'g++' and 'clang++' are searched
-
         resetup (bool):
             Setup again if the vocabname already exists
     """
     def __init__(self, vocabname: str, words: list or str=None, dbfile: str=None,
                  word_pair_limit: int=1000000, candidate_samplesize: int=1000,
                  decision_metric: str="mean_entropy", candidate_weight: float=0.3, strength: float=6,
-                 use_cpp: bool=True, cpp_recompile: bool=False, cpp_compiler: str=None, resetup: bool=False, **kwargs):
+                 resetup: bool=False, **kwargs):
         if dbfile is None:
             dbfile = os.environ.get("WORDLEAISQL_DBFILE")
             if dbfile is None:
@@ -233,7 +226,7 @@ class WordleAIApprox(WordleAISQLite):
             assert words is not None, "`words` must be supplied to setup the vocab '{}'".format(vocabname)
             words = _read_vocabfile(words) if type(words) == str else _dedup(words)
             logger.info("Setup tables for vocabname '%s'", vocabname)
-            _setup(dbfile=dbfile, vocabname=vocabname, words=words, use_cpp=use_cpp, recompile=cpp_recompile, compiler=cpp_compiler)
+            _setup(dbfile=dbfile, vocabname=vocabname, words=words)
 
         self.set_candidates()
 
