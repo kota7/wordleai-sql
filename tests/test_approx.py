@@ -99,10 +99,12 @@ class TestApprox(unittest.TestCase):
 
         with TemporaryDirectory() as d:
             curdir = os.getcwd()
-            os.chdir(d)
-            ai = WordleAIApprox("test", ["12", "31", "50"], dbfile=None)
-            self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath("./wordleai.db"), msg="dbfile in current dir")
-            os.chdir(curdir)
+            try:
+                os.chdir(d)
+                ai = WordleAIApprox("test", ["12", "31", "50"], dbfile=None)
+                self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath("./wordleai.db"), msg="dbfile in current dir")
+            finally:
+                os.chdir(curdir)
 
         with TemporaryDirectory() as d:
             dbfile = os.path.join(d, "test.db")
