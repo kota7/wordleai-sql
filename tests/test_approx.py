@@ -2,6 +2,7 @@
 
 import unittest
 import os
+import math
 from tempfile import TemporaryDirectory
 
 from wordleaisql.approx import WordleAIApprox
@@ -127,5 +128,35 @@ class TestApprox(unittest.TestCase):
         words = ["sheep", "shoes", "stage", "store", "style"]
         with TemporaryDirectory() as d:
             dbfile = os.path.join(d, "test.db")
+            from wordleaisql.utils import show_word_evaluations
+            # no need for filter
+            ai = WordleAIApprox("test", words, dbfile=dbfile, word_pair_limit=100, candidate_samplesize=10)
+            res = ai.evaluate(criterion="mean_entropy")
+            show_word_evaluations(res)
+
+            # filter candidates
             ai = WordleAIApprox("test", words, dbfile=dbfile, word_pair_limit=10, candidate_samplesize=2)
-            res = ai.evaluate()
+            res = ai.evaluate(criterion="mean_entropy")
+            show_word_evaluations(res)
+            # only answer words are filtered, so there should be some improvement for all rows in the candidate size
+            n_candidates = len(words)
+            for row in res:
+                self.assertTrue(row.max_n < n_candidates, msg=str(row))
+                self.assertTrue(row.mean_n < n_candidates, msg=str(row))
+                self.assertTrue(row.mean_entropy < math.log2(n_candidates), msg=str(row))
+
+            # filter inputs
+            ai = WordleAIApprox("test", words, dbfile=dbfile, word_pair_limit=10, candidate_samplesize=3)
+            res = ai.evaluate(criterion="mean_entropy")
+            show_word_evaluations(res)
+            # answer sample 3, word sample 3, so there should be 2 words not evaluated
+            n_candidates = len(words)
+            n_excluded = sum(row.max_n == n_candidates for row in res)
+            self.assertEqual(n_excluded, 2, msg="max_n")
+            n_excluded = sum(row.mean_n == n_candidates for row in res)
+            self.assertEqual(n_excluded, 2, msg="mean_n")
+            n_excluded = sum(row.mean_entropy == math.log2(n_candidates) for row in res)
+            self.assertEqual(n_excluded, 2, msg="mean_entropy")
+
+            # for debugging, print eval result
+            # assert False

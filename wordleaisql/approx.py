@@ -53,7 +53,7 @@ def _evaluate(dbfile: str, vocabname: str, top_k: int=20, criterion: str="mean_e
         else:
             answerfilter = "WHERE word IN ({})".format(",".join("?" * n_candidates))
             params2 = tuple(candidates)
-        params = params1 + params2
+        params = tuple(params1) + tuple(params2)
     elif n_words * candidate_samplesize <= word_pair_limit:
         # need approximation, and
         # we can reduce the problem size by sampling the answer words only
@@ -64,7 +64,7 @@ def _evaluate(dbfile: str, vocabname: str, top_k: int=20, criterion: str="mean_e
         params2 = random.sample(allwords if candidates is None else candidates, n_candidates2)
         inputfilter = ""
         params1 = ()
-        params = params1 + params2
+        params = tuple(params1) + tuple(params2)
     else:
         # need approximation, and need input words sampling
         n_words2 = int(word_pair_limit / candidate_samplesize)
