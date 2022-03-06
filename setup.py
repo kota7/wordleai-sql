@@ -6,12 +6,15 @@ readmefile = os.path.join(os.path.dirname(__file__), "README.md")
 with open(readmefile) as f:
     readme = f.read()
 
+from wordleaisql import __version__
+
 setup(
     name='wordleaisql',
-    version='0.1.7',
+    version=__version__,
     description='Wordle AI with SQL Backend',
     long_description=readme,
     long_description_content_type="text/markdown",
+    url='https://github.com/kota7/wordleai-sql',
     packages=['wordleaisql'],
     install_requires=['tqdm'],
     #test_require=[],

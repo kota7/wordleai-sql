@@ -9,6 +9,8 @@ logger = getLogger(__name__)
 from .base import WordleAI
 from .utils import show_word_evaluations, default_wordle_vocab, _timereport, wordle_judge, decode_judgement, _read_vocabfile
 from .sqlite import WordleAISQLite
+from .approx import WordleAIApprox
+from . import __version__
 
 def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_entropy"):
     print("")
@@ -221,14 +223,17 @@ def challenge(ai: WordleAI, max_round: int=20):
 def main():
     basicConfig(level=20, format="[%(levelname)s] %(message)s")
     parser = ArgumentParser(description="Wordle AI with SQL backend", formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-b", "--backend", type=str, default="sqlite", choices=["sqlite", "bq", "random"], help="AI type")
+    parser.add_argument("-b", "--backend", type=str, default="sqlite", choices=["sqlite", "approx", "bq", "random"], help="AI type")
     parser.add_argument("--vocabname", default="wordle", type=str, help="Name of vocabulary")
     parser.add_argument("--vocabfile", type=str, help="Text file containing words. If not supplied, default wordle vocab is used")
     parser.add_argument("--resetup", action="store_true", help="Setup the vocabulary if already exists")
     parser.add_argument("--sqlitefile", type=str, 
                         help=("SQLite database file. If not supplied, we first search env variable 'WORDLEAISQL_DBFILE'. "
                               "If the env variable is not defined, then ./wordleai.db is used"))
-
+    parser.add_argument("--word_pair_limit", type=int, default=1000000,
+                        help="Maximum number of (input word, answer word) pairs computed for approximate evaluation")
+    parser.add_argument("--candidate_samplesize", type=int, default=1000,
+                        help="Sample size of answer word for approximate evaluation")
     parser.add_argument("--bq_credential", type=str, help="Credential json file for a GCP service client")
     parser.add_argument("--bq_project", type=str, help="GCP project id (if not supplied, inferred from the credential default)")
     parser.add_argument("--bq_location", type=str, default="US", help="GCP location")
@@ -249,8 +254,14 @@ def main():
     parser.add_argument("--no_cpp", action="store_true", help="Not to use C++ script even if available")
     parser.add_argument("--cpp_recompile", action="store_true", help="Compile the C++ script again even if the source script is not updated")
     parser.add_argument("--cpp_compiler", type=str, help="Command name of the C++ compiler")
-    
+
+    parser.add_argument("--version", action="store_true", help="Show the program version")
+
     args = parser.parse_args()
+    if args.version:
+        print("wordleaisql v%s" % __version__)
+        return
+
     #print(args)
     words = default_wordle_vocab() if args.vocabfile is None else _read_vocabfile(args.vocabfile)
     #print(words)
@@ -271,6 +282,12 @@ def main():
                             decision_metric=args.decision_metric, candidate_weight=args.candidate_weight, strength=args.ai_strength,
                             use_cpp=(not args.no_cpp), cpp_recompile=args.cpp_recompile, cpp_compiler=args.cpp_compiler)
         logger.info("SQLite database: '%s', vocabname: '%s'", ai.dbfile, ai.vocabname)
+    elif args.backend == "approx":
+        ai = WordleAIApprox(args.vocabname, words, dbfile=args.sqlitefile, resetup=args.resetup,
+                            word_pair_limit=args.word_pair_limit, candidate_samplesize=args.candidate_samplesize,
+                            decision_metric=args.decision_metric, candidate_weight=args.candidate_weight, strength=args.ai_strength)
+        logger.info("SQLite database: '%s', word pair limit: %d, answer word sample size: %d, vocabname: '%s'",
+                    ai.dbfile, ai.word_pair_limit, ai.candidate_samplesize, ai.vocabname)
     elif args.backend == "bq":
         from .bigquery import WordleAIBigquery
         ai = WordleAIBigquery(args.vocabname, words, resetup=args.resetup,

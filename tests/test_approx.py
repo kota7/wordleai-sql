@@ -2,16 +2,17 @@
 
 import unittest
 import os
+import math
 from tempfile import TemporaryDirectory
 
-from wordleaisql.sqlite import WordleAISQLite
+from wordleaisql.approx import WordleAIApprox
 
-class TestSQLite(unittest.TestCase):
+class TestApprox(unittest.TestCase):
     def test_sqlite(self):
         words = ["sheep", "shoes", "stage", "store", "style"]
         with TemporaryDirectory() as d:
             dbfile = os.path.join(d, "test.db")
-            ai = WordleAISQLite("test", words, dbfile=dbfile)
+            ai = WordleAIApprox("test", words, dbfile=dbfile)
 
             # words must equal
             self.assertEqual(set(words), set(ai.words))
@@ -82,7 +83,7 @@ class TestSQLite(unittest.TestCase):
         # we must supply words for new vocab
         with TemporaryDirectory() as d:
             def _create_ai(dbfile, words):
-                ai = WordleAISQLite("test", words, dbfile=dbfile)
+                ai = WordleAIApprox("test", words, dbfile=dbfile)
                 return True
             dbfile = os.path.join(d, "test.db")
             self.assertRaises(Exception, _create_ai, dbfile, None, msg="new vocab requires word")  # need words for new vocab
@@ -95,17 +96,17 @@ class TestSQLite(unittest.TestCase):
         envval = os.environ.get(envname)
         if envval is not None:
             del os.environ[envname]
-        ai = WordleAISQLite("test", ["12", "31", "50"], dbfile=None)
+        ai = WordleAIApprox("test", ["12", "31", "50"], dbfile=None)
         self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath("./wordleai.db"), msg="dbfile in current dir")  # default value
 
         with TemporaryDirectory() as d:
             dbfile = os.path.join(d, "test.db")
             os.environ[envname] = dbfile
-            ai = WordleAISQLite("test", ["12", "31", "50"], dbfile=None)
+            ai = WordleAIApprox("test", ["12", "31", "50"], dbfile=None)
             self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath(dbfile), msg="dbfile from envvar")  # envvar
 
             dbfile2 = os.path.join(d, "test2.db")
-            ai = WordleAISQLite("test", ["12", "31", "50"], dbfile=dbfile2)
+            ai = WordleAIApprox("test", ["12", "31", "50"], dbfile=dbfile2)
             self.assertEqual(os.path.abspath(ai.dbfile), os.path.abspath(dbfile2), msg="dbfile explicit")  # specific var
         if envval is not None:
             os.environ[envname] = envval
@@ -114,7 +115,7 @@ class TestSQLite(unittest.TestCase):
         def _create_ai(words):
             with TemporaryDirectory() as d:
                 dbfile = os.path.join(d, "test.db")
-                ai = WordleAISQLite("test", words, dbfile=dbfile)
+                ai = WordleAIApprox("test", words, dbfile=dbfile)
             return True
         self.assertRaises(Exception, _create_ai, ["sheep", "shoes", "stage", "store", "style", "superb"])
         self.assertTrue(_create_ai(["sheep", "shoes", "stage", "store", "style"]))
@@ -122,3 +123,40 @@ class TestSQLite(unittest.TestCase):
         self.assertTrue(_create_ai(["松竹梅", "大中小"]))
         self.assertRaises(Exception, _create_ai, ["3.1415", "2.7182", "1.23456"])
         self.assertTrue(_create_ai(["12345", "67890"]))
+
+    def test_approx(self):
+        words = ["sheep", "shoes", "stage", "store", "style"]
+        with TemporaryDirectory() as d:
+            dbfile = os.path.join(d, "test.db")
+            from wordleaisql.utils import show_word_evaluations
+            # no need for filter
+            ai = WordleAIApprox("test", words, dbfile=dbfile, word_pair_limit=100, candidate_samplesize=10)
+            res = ai.evaluate(criterion="mean_entropy")
+            show_word_evaluations(res)
+
+            # filter candidates
+            ai = WordleAIApprox("test", words, dbfile=dbfile, word_pair_limit=10, candidate_samplesize=2)
+            res = ai.evaluate(criterion="mean_entropy")
+            show_word_evaluations(res)
+            # only answer words are filtered, so there should be some improvement for all rows in the candidate size
+            n_candidates = len(words)
+            for row in res:
+                self.assertTrue(row.max_n < n_candidates, msg=str(row))
+                self.assertTrue(row.mean_n < n_candidates, msg=str(row))
+                self.assertTrue(row.mean_entropy < math.log2(n_candidates), msg=str(row))
+
+            # filter inputs
+            ai = WordleAIApprox("test", words, dbfile=dbfile, word_pair_limit=10, candidate_samplesize=3)
+            res = ai.evaluate(criterion="mean_entropy")
+            show_word_evaluations(res)
+            # answer sample 3, word sample 3, so there should be 2 words not evaluated
+            n_candidates = len(words)
+            n_excluded = sum(row.max_n == n_candidates for row in res)
+            self.assertEqual(n_excluded, 2, msg="max_n")
+            n_excluded = sum(row.mean_n == n_candidates for row in res)
+            self.assertEqual(n_excluded, 2, msg="mean_n")
+            n_excluded = sum(row.mean_entropy == math.log2(n_candidates) for row in res)
+            self.assertEqual(n_excluded, 2, msg="mean_entropy")
+
+            # for debugging, print eval result
+            # assert False

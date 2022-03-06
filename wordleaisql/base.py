@@ -14,7 +14,7 @@ class WordleAI:
     Args:
         vocabname (str):
             Name of vocaburary
-        words (str of list): 
+        words (str of list):
             If str, the path to a vocabulary file
             If list, the list of words
     """
@@ -27,7 +27,7 @@ class WordleAI:
         assert len(wordlens) == 1, "word length must be equal, but '{}'".format(wordlens)
 
         self.set_candidates()
-    
+
     @property
     def name(self)-> str:
         return "Wordle AI (random)"
@@ -56,7 +56,7 @@ class WordleAI:
             self._candidates = _dedup(candidates)
         else:
             self._candidates = self.words.copy()
-    
+
     def evaluate(self, top_k: int=20, criterion: str="mean_entropy")-> list:
         """
         Evaluate input words and return the top ones in accordance with the given criterion
@@ -85,7 +85,7 @@ class WordleAI:
         """
         self.set_candidates([c for c in self.candidates
                              if wordle_judge(input_word, c) == encode_judgement(int(judge_result))])
-        
+
     def pick_word(self, criterion: str="mean_entropy")-> str:
         """Pick an input word"""
         if len(self.candidates) > 0:
