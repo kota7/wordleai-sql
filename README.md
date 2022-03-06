@@ -173,9 +173,28 @@ wordleai-sql --vocabname myvocab --vocabfile my-vocab.txt
 - `wordleai-sql --challenge` starts a competition against an AI.
 
 
-## Use google bigquery backend
+## Backend options
 
-- We can use google bigquery as the backend SQL engine with `-bbq` option.
+### SQLite with approximate evaluation
+
+```shell
+# minimal command to run approx evaluation
+wordleai-sql -b approx
+```
+
+- With `-b approx` option, we employ approximate evaluation of words by sampling input and/or answer words.
+- The database setup completes quikckly since this does not require precompuation of the judge results.
+- Evaluation completes quickly since small numbers of input and answer words are involved in the calculation.
+
+### Google bigquery backend
+
+```shell
+# minimal command to run with bigquery engine
+# --vocabname is used as the dataset name
+wordleai-sql -bbq --bq_credential "gcp_credentials.json" --vocabname "wordle_dataset"
+```
+
+- With `-bbq` option, we employ google bigquery as the backend SQL engine.
 - We need to supply a credential json file of the GCP service account with the following permissions:
   ```
   bigquery.datasets.create
@@ -194,12 +213,6 @@ wordleai-sql --vocabname myvocab --vocabfile my-vocab.txt
   bigquery.tables.update
   bigquery.tables.updateData
   ```
-
-```shell
-# minimal command to run with bigquery engine
-# --vocabname is used as the dataset name
-wordleai-sql -bbq --bq_credential "gcp_credentials.json" --vocabname "wordle_dataset"
-```
 
 ## Other options
 
