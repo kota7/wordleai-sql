@@ -13,17 +13,32 @@ import os
 import math
 import random
 import sqlite3
+from contextlib import contextmanager
 from logging import getLogger
 logger = getLogger(__name__)
 
 from .utils import WordEvaluation, wordle_judge, _read_vocabfile, _dedup
 from .sqlite import WordleAISQLite
 
-def _setup(dbfile: str, vocabname: str, words: list):
+@contextmanager
+def _connect(db: str or sqlite3.Connection)-> sqlite3.Connection:
+    if type(db) == sqlite3.Connection:
+        yield db
+    elif type(db) == str:
+        conn = sqlite3.connect(db)
+        try:
+            yield conn
+        finally:
+            conn.close()
+    else:
+        raise TypeError("`db` must be either str or sqlite3.Connection, but '{}'".format(type(db)))
+
+def _setup(db: str or sqlite3.Connection, vocabname: str, words: list):
     assert len(words) == len(set(words)), "input_words must be unique"
     wordlens = set(len(w) for w in words)
     assert len(wordlens) == 1, "word length must be equal, but '{}'".format(wordlens)
-    with sqlite3.connect(dbfile) as conn:
+    #with sqlite3.connect(dbfile) as conn:
+    with _connect(db) as conn:
         c = conn.cursor()
         c.execute('DROP TABLE IF EXISTS "{name}_words_approx"'.format(name=vocabname))
         c.execute('CREATE TABLE "{name}_words_approx" (word TEXT PRIMARY KEY)'.format(name=vocabname))
@@ -32,11 +47,11 @@ def _setup(dbfile: str, vocabname: str, words: list):
         c.execute('CREATE INDEX "{name}_words_approx_idx" ON "{name}_words_approx" (word)'.format(name=vocabname))
         conn.commit()
 
-def _evaluate(dbfile: str, vocabname: str, top_k: int=20, criterion: str="mean_entropy", candidates: list=None,
-              word_pair_limit: int=1000000, candidate_samplesize: int=1000)-> list:
+def _evaluate(db: str or sqlite3.Connection, vocabname: str, top_k: int=20, criterion: str="mean_entropy", candidates: list=None,
+              word_pair_limit: int=500000, candidate_samplesize: int=500)-> list:
     assert candidate_samplesize > 0
     assert word_pair_limit > candidate_samplesize
-    allwords = _words(dbfile, vocabname)  # get all words
+    allwords = _words(db, vocabname)  # get all words
 
     n_words = len(allwords)
     n_candidates = n_words if candidates is None else len(candidates)
@@ -44,7 +59,7 @@ def _evaluate(dbfile: str, vocabname: str, top_k: int=20, criterion: str="mean_e
     # make filters to input and answer words to conduct approx, smaller optimization
     if n_words * n_candidates <= word_pair_limit:
         # within the size limit, no need for approximation
-        logger.info("No approximation needed (input words: %d, candidates: %d)", n_words, n_candidates)
+        logger.debug("No approximation needed (input words: %d, candidates: %d)", n_words, n_candidates)
         inputfilter = ""
         params1 = ()
         if candidates is None:
@@ -58,8 +73,8 @@ def _evaluate(dbfile: str, vocabname: str, top_k: int=20, criterion: str="mean_e
         # need approximation, and
         # we can reduce the problem size by sampling the answer words only
         n_candidates2 = int(word_pair_limit / n_words)  # candidate sample size
-        logger.info("Approximation with candidate sampling (input words: %d, candidates: %d -> %d)",
-                    n_words, n_candidates, n_candidates2)
+        logger.debug("Approximation with candidate sampling (input words: %d, candidates: %d -> %d)",
+                     n_words, n_candidates, n_candidates2)
         answerfilter = "WHERE word IN ({})".format(",".join("?" * n_candidates2))
         params2 = random.sample(allwords if candidates is None else candidates, n_candidates2)
         inputfilter = ""
@@ -71,8 +86,8 @@ def _evaluate(dbfile: str, vocabname: str, top_k: int=20, criterion: str="mean_e
         inputfilter = "WHERE word IN ({})".format(",".join("?" * n_words2))
         params1 = random.sample(allwords, n_words2)
         if candidate_samplesize == n_candidates:
-            logger.info("Approximation with input word sampling (input words: %d -> %d, candidates: %d)",
-                        n_words, n_words2, candidate_samplesize)
+            logger.debug("Approximation with input word sampling (input words: %d -> %d, candidates: %d)",
+                         n_words, n_words2, candidate_samplesize)
             if candidates is None:
                 answerfiler = ""
                 params2 = ()
@@ -80,13 +95,14 @@ def _evaluate(dbfile: str, vocabname: str, top_k: int=20, criterion: str="mean_e
                 answerfilter = "WHERE word IN ({})".format(",".join("?" * n_candidates))
                 params2 = tuple(candidates)
         else:
-            logger.info("Approximation with input word and candidate sampling (input words: %d -> %d, candidates: %d -> %d)",
-                        n_words, n_words2, n_candidates, candidate_samplesize)
+            logger.debug("Approximation with input word and candidate sampling (input words: %d -> %d, candidates: %d -> %d)",
+                         n_words, n_words2, n_candidates, candidate_samplesize)
             answerfilter = "WHERE word IN ({})".format(",".join("?" * candidate_samplesize))
             params2 = random.sample(allwords if candidates is None else candidates, candidate_samplesize)
         params = tuple(params1) + tuple(params2)
 
-    with sqlite3.connect(dbfile) as conn:
+#    with sqlite3.connect(dbfile) as conn:
+    with _connect(db) as conn:
         conn.create_function("log2", 1, math.log2)
         conn.create_function("WordleJudge", 2, wordle_judge)
         c = conn.cursor()
@@ -145,8 +161,9 @@ def _evaluate(dbfile: str, vocabname: str, top_k: int=20, criterion: str="mean_e
     out = out[:top_k]
     return out
 
-def _vocabnames(dbfile: str)-> list:
-    with sqlite3.connect(dbfile) as conn:
+def _vocabnames(db: str or sqlite3.Connection)-> list:
+#    with sqlite3.connect(dbfile) as conn:
+    with _connect(db) as conn:
         c = conn.cursor()
         c.execute("SELECT name FROM sqlite_master")
         tables = [row[0] for row in c]
@@ -154,8 +171,9 @@ def _vocabnames(dbfile: str)-> list:
         t = [t[:-13] for t in tables if t.endswith("_words_approx")]
     return t
 
-def _words(dbfile: str, vocabname: str)-> list:
-    with sqlite3.connect(dbfile) as conn:
+def _words(db: str or sqlite3.Connection, vocabname: str)-> list:
+#    with sqlite3.connect(dbfile) as conn:
+    with _connect(db) as conn:
         c = conn.cursor()
         c.execute('SELECT * FROM "{name}_words_approx"'.format(name=vocabname))
         words = [row[0] for row in c]
@@ -182,6 +200,9 @@ class WordleAIApprox(WordleAISQLite):
             SQLite database file
             If not supplied, use environment variable `WORDLEAISQL_DBFILE` if exists,
             otherwise './wordleai.db' in the current directory is used
+        inmemory (bool):
+            If true, ignore `dbfile` and use ':memory:' instead, so the in-memory database is used.
+
         word_pair_limit (int):
             Limit of the len(input_words) * len(candidates) to compute the evaluation.
             The larger, the more accurate approximation.
@@ -199,16 +220,20 @@ class WordleAIApprox(WordleAISQLite):
         resetup (bool):
             Setup again if the vocabname already exists
     """
-    def __init__(self, vocabname: str, words: list or str=None, dbfile: str=None,
-                 word_pair_limit: int=1000000, candidate_samplesize: int=1000,
+    def __init__(self, vocabname: str, words: list or str=None, dbfile: str=None, inmemory: bool=False,
+                 word_pair_limit: int=500000, candidate_samplesize: int=500,
                  decision_metric: str="mean_entropy", candidate_weight: float=0.3, strength: float=6,
                  resetup: bool=False, **kwargs):
-        if dbfile is None:
-            dbfile = os.environ.get("WORDLEAISQL_DBFILE")
+        if inmemory:
+            dbfile = ":memory:"  # ignore dbfile supplied and use in-memory database
+        else:
             if dbfile is None:
-                dbfile = "./wordleai.db"
-        os.makedirs(os.path.dirname(os.path.abspath(dbfile)), exist_ok=True)
+                dbfile = os.environ.get("WORDLEAISQL_DBFILE")
+                if dbfile is None:
+                    dbfile = "./wordleai.db"
+            os.makedirs(os.path.dirname(os.path.abspath(dbfile)), exist_ok=True)
         self.dbfile = dbfile
+        self.db = sqlite3.connect(self.dbfile)
         assert word_pair_limit > candidate_samplesize
         assert candidate_samplesize > 0
         self.word_pair_limit = word_pair_limit
@@ -226,11 +251,18 @@ class WordleAIApprox(WordleAISQLite):
             assert words is not None, "`words` must be supplied to setup the vocab '{}'".format(vocabname)
             words = _read_vocabfile(words) if type(words) == str else _dedup(words)
             logger.info("Setup tables for vocabname '%s'", vocabname)
-            _setup(dbfile=dbfile, vocabname=vocabname, words=words)
+            _setup(db=self.db, vocabname=vocabname, words=words)
 
         self._info = []                  # infomation of the judge results
         self._nonanswer_words = set([])  # words that cannot become an answer
         #self.set_candidates()
+
+    def __del__(self):
+        try:
+            self.db.close()
+            logger.debug("Database connection closed")
+        except Exception as e:
+            logger.warning("Failed to close the database connection: '%s'".format(e))
 
     @property
     def name(self)-> str:
@@ -239,16 +271,20 @@ class WordleAIApprox(WordleAISQLite):
     @property
     def vocabnames(self)-> list:
         """Available vocab names"""
-        return _vocabnames(self.dbfile)
+        #return _vocabnames(self.dbfile)
+        return _vocabnames(self.db)
     
     @property
     def words(self)-> list:
         """All words that can be inputted"""
-        return _words(self.dbfile, self.vocabname)
+        #return _words(self.dbfile, self.vocabname)
+        return _words(self.db, self.vocabname)
 
     def evaluate(self, top_k: int=20, criterion: str="mean_entropy")-> list:
         """
         Evaluate input words and return the top ones in accordance with the given criterion
         """
-        return _evaluate(self.dbfile, self.vocabname, top_k=top_k, criterion=criterion, candidates=self.candidates,
+        # return _evaluate(self.dbfile, self.vocabname, top_k=top_k, criterion=criterion, candidates=self.candidates,
+        #                  word_pair_limit=self.word_pair_limit, candidate_samplesize=self.candidate_samplesize)
+        return _evaluate(self.db, self.vocabname, top_k=top_k, criterion=criterion, candidates=self.candidates,
                          word_pair_limit=self.word_pair_limit, candidate_samplesize=self.candidate_samplesize)
