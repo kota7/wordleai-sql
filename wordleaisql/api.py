@@ -282,7 +282,7 @@ def main():
     parser.add_argument("--inmemory", action="store_true", help="Use in-memory database. Only applicable with `-b approx`")
     parser.add_argument("--word_pair_limit", type=int, default=500000,
                         help="Maximum number of (input word, answer word) pairs computed for approximate evaluation")
-    parser.add_argument("--candidate_samplesize", type=int, default=1000,
+    parser.add_argument("--candidate_samplesize", type=int, default=500,
                         help="Sample size of answer word for approximate evaluation")
     parser.add_argument("--bq_credential", type=str, help="Credential json file for a GCP service client")
     parser.add_argument("--bq_project", type=str, help="GCP project id (if not supplied, inferred from the credential default)")
