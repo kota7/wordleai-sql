@@ -233,6 +233,7 @@ def main():
     parser.add_argument("--sqlitefile", type=str, 
                         help=("SQLite database file. If not supplied, we first search env variable 'WORDLEAISQL_DBFILE'. "
                               "If the env variable is not defined, then ./wordleai.db is used"))
+    parser.add_argument("--inmemory", action="store_true", help="Use in-memory database. Only applicable with `-b approx`")
     parser.add_argument("--word_pair_limit", type=int, default=1000000,
                         help="Maximum number of (input word, answer word) pairs computed for approximate evaluation")
     parser.add_argument("--candidate_samplesize", type=int, default=1000,
@@ -281,12 +282,14 @@ def main():
                 return
 
     if args.backend == "sqlite":
+        if args.inmemory:
+            logger.warning("`--inmemory` only applicable with `-b approx`")
         ai = WordleAISQLite(args.vocabname, words, dbfile=args.sqlitefile, resetup=args.resetup,
                             decision_metric=args.decision_metric, candidate_weight=args.candidate_weight, strength=args.ai_strength,
                             use_cpp=(not args.no_cpp), cpp_recompile=args.cpp_recompile, cpp_compiler=args.cpp_compiler)
         logger.info("SQLite database: '%s', vocabname: '%s'", ai.dbfile, ai.vocabname)
     elif args.backend == "approx":
-        ai = WordleAIApprox(args.vocabname, words, dbfile=args.sqlitefile, resetup=args.resetup,
+        ai = WordleAIApprox(args.vocabname, words, dbfile=args.sqlitefile, inmemory=args.inmemory, resetup=args.resetup,
                             word_pair_limit=args.word_pair_limit, candidate_samplesize=args.candidate_samplesize,
                             decision_metric=args.decision_metric, candidate_weight=args.candidate_weight, strength=args.ai_strength)
         logger.info("SQLite database: '%s', word pair limit: %d, answer word sample size: %d, vocabname: '%s'",
