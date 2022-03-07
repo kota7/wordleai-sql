@@ -132,7 +132,8 @@ def play(words: list):
             print("Good job! You win! Answer: '%s'" % answer_word)
             return True
 
-def challenge(ai: WordleAI, max_round: int=20):
+def challenge(ai: WordleAI, max_round: int=20, visible: bool=False,
+              alternate: bool=False, ai_first: bool=False, continue_after_result: bool=False):
     #ai.set_candidates()
     ai.clear_info()
     n_ans = len(ai.candidates)
@@ -161,70 +162,115 @@ def challenge(ai: WordleAI, max_round: int=20):
                 return x
             print("Invalid word: '%s'" % x)
 
-    round_ = 0
-    #header = "%-{ncol}s | %-{ncol}s".format(ncol=wordlen*2 + 2) % ("User", "AI")
-    info = []
-    info_mask = []
-    user_done = False
-    ai_done = False
-    while True:
-        if round_ >= max_round:
-            break
-        round_ += 1
-        print("* Round %d *" % round_)
-        # ai decision
-        if not ai_done:
-            with _timereport("AI thinking"):
-                ai_word = ai.pick_word()
-            ai_res = wordle_judge(ai_word, answer_word)
-            ai_res = str(decode_judgement(ai_res)).zfill(wordlen)
-            ai.update(ai_word, ai_res)
-        else:
-            ai_word = " " * wordlen
-            ai_res = " " * wordlen
-        
-        # user decision
-        if not user_done:
-            user_word = _get_word()
-            if user_word == "give up":
-                print("You lose.")
+    user_history, ai_history = [], []
+    user_done, ai_done = False, False  # flag of finding answer
+    giveup = False  # flag user gave up
+    ai_turn = ai_first
+    winner = "unfinished"  # {unfinished, draw, user, ai}
+    def _show_history():
+        _user_history = user_history.copy()
+        _ai_history = ai_history.copy()
+        #print(_user_history)
+        #print(_ai_history)
+        # fix the legngth difference, if any
+        if not visible:
+            _ai_history = [(("*" if w in words_set else " ") * wordlen, r) for w, r in _ai_history]
+        # pad empty rows
+        while len(_ai_history) < len(_user_history):
+            _ai_history.append((" " * wordlen, " " * wordlen))
+        while len(_user_history) < len(_ai_history):
+            _user_history.append((" " * wordlen, " " * wordlen))
+        out = []
+        for u, a in zip(_user_history, _ai_history):
+            out.append("  %s  %s  |  %s  %s" % tuple(u + a))
+        print("\n".join(out))
+
+    for round_ in range(max_round):
+        print("* Round %d *" % (round_ + 1))
+        # clear prev round result
+        tmp = " " * wordlen
+        ai_word, ai_res, user_word, user_res = tmp, tmp, tmp, tmp
+        for _ in range(2):  # loop over two users
+            skipped = False  # flag no decision has been made by this user
+            if ai_turn:
+                if ai_done:
+                    skipped = True
+                else:
+                    with _timereport("AI thinking"):
+                        ai_word = ai.pick_word()
+                    ai_res = wordle_judge(ai_word, answer_word)
+                    ai_res = str(decode_judgement(ai_res)).zfill(wordlen)
+                    ai.update(ai_word, ai_res)
+                    ai_history.append((ai_word, ai_res))
+                    if ai_word == answer_word:
+                        ai_done = True
+                ai_turn = False
+            else:
+                if (user_done or giveup):
+                    skipped = True
+                else:
+                    user_word = _get_word()
+                    if user_word == "give up":
+                        giveup = True
+                    else:
+                        user_res = wordle_judge(user_word, answer_word)
+                        user_res = str(decode_judgement(user_res)).zfill(wordlen)
+                        user_history.append((user_word, user_res))
+                        if user_word == answer_word:
+                            user_done = True
+                        if visible and alternate and (user_word in words_set):
+                            # ai learns the user output
+                            ai.update(user_word, user_res)
+                ai_turn = True
+
+            if alternate and (not skipped):
+                _show_history() # show the history at the end of one move
+                # check the winner
+                if winner == "unfinished":
+                    if ai_done:
+                        winner = "ai"
+                    elif user_done:
+                        winner = "user"
+                if winner != "unfinished":
+                    if (not continue_after_result) or visible:
+                        # visible --> answer is already seen
+                        # not continue_after_result --> no reason to continue
+                        break  # go to the round end
+
+        if not alternate:
+            _show_history()  # show the history at the end of each found
+            if visible and (user_word in words_set): 
+                # ai learns user's output at the end of round
+                ai.update(user_word, user_res)
+            # check the winner
+            if winner == "unfinished":
+                if ai_done and user_done:
+                    winner = "draw"
+                elif ai_done:
+                    winner = "ai"
+                elif user_done:
+                    winner = "user"
+
+        if continue_after_result and (not visible):
+            if user_done and ai_done:
                 break
-            user_res = wordle_judge(user_word, answer_word)
-            user_res = str(decode_judgement(user_res)).zfill(wordlen)
         else:
-            user_word = " " * wordlen
-            user_res = " " * wordlen
-
-        info.append("  %s  %s | %s  %s" % (user_word, user_res, ai_word, ai_res))
-        info_mask.append("  %s  %s | %s  %s" % (user_word, user_res, ai_word if ai_done else "*"*len(ai_word), ai_res))
-        #print("\n".join(info))
-        print("\n".join(info_mask))
-        if user_word == answer_word and ai_word == answer_word:
-            print("Good job! It's draw.")
-            break
-        elif user_word == answer_word:
-            if ai_done:
-                print("Well done!")
-            else:
-                print("Great job! You win!")
-            user_done = True
-        elif ai_word == answer_word:
-            if user_done:
-                print("Thanks for waiting.")
-            else:
-                print("You lose...")
-            ai_done = True            
-        
-        if user_done and ai_done:
-            break
+            if winner != "unfinished":
+                break
     print("===============================")
+    if winner == "user":
+        print("Great job! You win!")
+    elif winner == "ai":
+        print("You lose...")
+    else:
+        print("Good job. It's draw.")
     print("Answer: '%s'" % answer_word)
-    print("\n".join(info))
+    visible = True
+    _show_history()
     print("===============================")
-
+            
 
 def main():
-    basicConfig(level=20, format="[%(levelname)s] %(message)s")
     parser = ArgumentParser(description="Wordle AI with SQL backend", formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-b", "--backend", type=str, default="sqlite", choices=["sqlite", "approx", "bq", "random"], help="AI type")
     parser.add_argument("--vocabname", default="wordle", type=str, help="Name of vocabulary")
@@ -246,25 +292,31 @@ def main():
     parser.add_argument("--suggest_criterion", type=str, default="mean_entropy", choices=["max_n", "mean_n", "mean_entropy"],
                         help="Criterion for an AI to sort the word suggestions")
     parser.add_argument("--num_suggest", type=int, default=20, help="Number of suggestion to print")
-    parser.add_argument("--ai_strength", type=float, default=5, help="Strength of AI in [0, 10] in challenge mode")
-    parser.add_argument("--decision_metric", type=str, default="mean_entropy", choices=["max_n", "mean_n", "mean_entropy"],
-                        help="Criterion for an AI to use in challenge mode")
-    parser.add_argument("--candidate_weight", type=float, default=0.3, help="Weight applied to the answer candidate words in challenge mode")
 
     parser.add_argument("--play", action="store_true", help="Play your own game without AI")
     parser.add_argument("--challenge", action="store_true", help="Challenge AI")
     parser.add_argument("--max_round", type=int, default=20, help="Maximum rounds in challenge mode")
+    parser.add_argument("--visible", action="store_true", help="Opponent words are visible in challenge mode")
+    parser.add_argument("--alternate", action="store_true", help="Decisions are made in turn in challenge mode")
+    parser.add_argument("--ai_first", action="store_true", help="AI makes the first decision in challenge mode")
+    parser.add_argument("--continue_after_result", action="store_true", help="Continue the game after result is determined in challenge mode")
+    parser.add_argument("--ai_strength", type=float, default=6, help="Strength of AI in [0, 10] in challenge mode")
+    parser.add_argument("--decision_metric", type=str, default="mean_entropy", choices=["max_n", "mean_n", "mean_entropy"],
+                        help="Criterion for an AI to use in challenge mode")
+    parser.add_argument("--candidate_weight", type=float, default=0.3, help="Weight applied to the answer candidate words in challenge mode")
 
     parser.add_argument("--no_cpp", action="store_true", help="Not to use C++ script even if available")
     parser.add_argument("--cpp_recompile", action="store_true", help="Compile the C++ script again even if the source script is not updated")
     parser.add_argument("--cpp_compiler", type=str, help="Command name of the C++ compiler")
 
+    parser.add_argument("--debug", action="store_true", help="Show debug messages")
     parser.add_argument("--version", action="store_true", help="Show the program version")
 
     args = parser.parse_args()
     if args.version:
         print("wordleaisql v%s" % __version__)
         return
+    basicConfig(level=10 if args.debug else 20, format="[%(levelname)s] %(message)s")
 
     #print(args)
     words = default_wordle_vocab() if args.vocabfile is None else _read_vocabfile(args.vocabfile)
@@ -308,7 +360,8 @@ def main():
 
     if args.challenge:
         while True:
-            challenge(ai, args.max_round)
+            challenge(ai, max_round=args.max_round, visible=args.visible, alternate=args.alternate,
+                      ai_first=args.ai_first, continue_after_result=args.continue_after_result)
             while True:
                 ans = input("One more game? (y/n) > ")
                 ans = ans.strip().lower()[0:1]

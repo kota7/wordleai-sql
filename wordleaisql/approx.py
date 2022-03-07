@@ -59,7 +59,7 @@ def _evaluate(db: str or sqlite3.Connection, vocabname: str, top_k: int=20, crit
     # make filters to input and answer words to conduct approx, smaller optimization
     if n_words * n_candidates <= word_pair_limit:
         # within the size limit, no need for approximation
-        logger.info("No approximation needed (input words: %d, candidates: %d)", n_words, n_candidates)
+        logger.debug("No approximation needed (input words: %d, candidates: %d)", n_words, n_candidates)
         inputfilter = ""
         params1 = ()
         if candidates is None:
@@ -73,8 +73,8 @@ def _evaluate(db: str or sqlite3.Connection, vocabname: str, top_k: int=20, crit
         # need approximation, and
         # we can reduce the problem size by sampling the answer words only
         n_candidates2 = int(word_pair_limit / n_words)  # candidate sample size
-        logger.info("Approximation with candidate sampling (input words: %d, candidates: %d -> %d)",
-                    n_words, n_candidates, n_candidates2)
+        logger.debug("Approximation with candidate sampling (input words: %d, candidates: %d -> %d)",
+                     n_words, n_candidates, n_candidates2)
         answerfilter = "WHERE word IN ({})".format(",".join("?" * n_candidates2))
         params2 = random.sample(allwords if candidates is None else candidates, n_candidates2)
         inputfilter = ""
@@ -86,8 +86,8 @@ def _evaluate(db: str or sqlite3.Connection, vocabname: str, top_k: int=20, crit
         inputfilter = "WHERE word IN ({})".format(",".join("?" * n_words2))
         params1 = random.sample(allwords, n_words2)
         if candidate_samplesize == n_candidates:
-            logger.info("Approximation with input word sampling (input words: %d -> %d, candidates: %d)",
-                        n_words, n_words2, candidate_samplesize)
+            logger.debug("Approximation with input word sampling (input words: %d -> %d, candidates: %d)",
+                         n_words, n_words2, candidate_samplesize)
             if candidates is None:
                 answerfiler = ""
                 params2 = ()
@@ -95,8 +95,8 @@ def _evaluate(db: str or sqlite3.Connection, vocabname: str, top_k: int=20, crit
                 answerfilter = "WHERE word IN ({})".format(",".join("?" * n_candidates))
                 params2 = tuple(candidates)
         else:
-            logger.info("Approximation with input word and candidate sampling (input words: %d -> %d, candidates: %d -> %d)",
-                        n_words, n_words2, n_candidates, candidate_samplesize)
+            logger.debug("Approximation with input word and candidate sampling (input words: %d -> %d, candidates: %d -> %d)",
+                         n_words, n_words2, n_candidates, candidate_samplesize)
             answerfilter = "WHERE word IN ({})".format(",".join("?" * candidate_samplesize))
             params2 = random.sample(allwords if candidates is None else candidates, candidate_samplesize)
         params = tuple(params1) + tuple(params2)
@@ -260,7 +260,7 @@ class WordleAIApprox(WordleAISQLite):
     def __del__(self):
         try:
             self.db.close()
-            logger.info("Database connection closed")
+            logger.debug("Database connection closed")
         except Exception as e:
             logger.warning("Failed to close the database connection: '%s'".format(e))
 
