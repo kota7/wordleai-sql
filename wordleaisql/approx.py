@@ -48,7 +48,7 @@ def _setup(db: str or sqlite3.Connection, vocabname: str, words: list):
         conn.commit()
 
 def _evaluate(db: str or sqlite3.Connection, vocabname: str, top_k: int=20, criterion: str="mean_entropy", candidates: list=None,
-              word_pair_limit: int=1000000, candidate_samplesize: int=1000)-> list:
+              word_pair_limit: int=500000, candidate_samplesize: int=1000)-> list:
     assert candidate_samplesize > 0
     assert word_pair_limit > candidate_samplesize
     allwords = _words(db, vocabname)  # get all words
@@ -221,7 +221,7 @@ class WordleAIApprox(WordleAISQLite):
             Setup again if the vocabname already exists
     """
     def __init__(self, vocabname: str, words: list or str=None, dbfile: str=None, inmemory: bool=False,
-                 word_pair_limit: int=1000000, candidate_samplesize: int=1000,
+                 word_pair_limit: int=500000, candidate_samplesize: int=1000,
                  decision_metric: str="mean_entropy", candidate_weight: float=0.3, strength: float=6,
                  resetup: bool=False, **kwargs):
         if inmemory:

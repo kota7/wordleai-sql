@@ -280,7 +280,7 @@ def main():
                         help=("SQLite database file. If not supplied, we first search env variable 'WORDLEAISQL_DBFILE'. "
                               "If the env variable is not defined, then ./wordleai.db is used"))
     parser.add_argument("--inmemory", action="store_true", help="Use in-memory database. Only applicable with `-b approx`")
-    parser.add_argument("--word_pair_limit", type=int, default=1000000,
+    parser.add_argument("--word_pair_limit", type=int, default=500000,
                         help="Maximum number of (input word, answer word) pairs computed for approximate evaluation")
     parser.add_argument("--candidate_samplesize", type=int, default=1000,
                         help="Sample size of answer word for approximate evaluation")
