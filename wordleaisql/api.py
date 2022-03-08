@@ -18,8 +18,9 @@ def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_
     print("")
     #ai.set_candidates()  # initialize all candidates
     ai.clear_info()
+    words_set = set(ai.words)
 
-    def _receive_input():
+    def _receive_input(words_set: set):
         while True:
             message = [
                 "",
@@ -54,7 +55,10 @@ def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_
                     continue
                 word, result = ans[1], ans[2]
                 if not all(r in "012" for r in result):
-                    print("'%s' is invalid <result>")
+                    print("'%s' is invalid result expression" % result)
+                    continue
+                if word not in words_set:
+                    print("'%s' is not in the vocab" % word)
                     continue
                 if len(word) < len(result):
                     print("Word and result length mismatch")
@@ -79,7 +83,7 @@ def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_
             print("There is no candidate words consistent with the information...")
             break
 
-        ans = _receive_input()
+        ans = _receive_input(words_set)
         if ans[0] == "s":
             criterion = default_criterion if len(ans) < 2 else ans[1]
             with _timereport("AI evaluation"):
