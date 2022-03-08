@@ -15,7 +15,7 @@ logger = getLogger(__file__)
 
 
 # constants
-APP_VERSION = "0.0.2"
+APP_VERSION = "0.0.3"
 WORD_PAIR_LIMIT = 500000
 CANDIDATE_SAMPLE_SIZE = 500
 CSS = """
