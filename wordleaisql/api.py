@@ -272,7 +272,7 @@ def challenge(ai: WordleAI, max_round: int=20, visible: bool=False,
 
 def main():
     parser = ArgumentParser(description="Wordle AI with SQL backend", formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-b", "--backend", type=str, default="sqlite", choices=["sqlite", "approx", "bq", "random"], help="AI type")
+    parser.add_argument("-b", "--backend", type=str, default="approx", choices=["sqlite", "approx", "bq", "random"], help="AI type")
     parser.add_argument("--vocabname", default="wordle", type=str, help="Name of vocabulary")
     parser.add_argument("--vocabfile", type=str, help="Text file containing words. If not supplied, default wordle vocab is used")
     parser.add_argument("--resetup", action="store_true", help="Setup the vocabulary if already exists")
