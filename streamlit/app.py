@@ -15,7 +15,7 @@ logger = getLogger(__file__)
 
 
 # constants
-APP_VERSION = "0.0.3"
+APP_VERSION = "0.0.4"
 WORD_PAIR_LIMIT = 500000
 CANDIDATE_SAMPLE_SIZE = 500
 CSS = """
@@ -79,9 +79,9 @@ def main():
         #select_candidate_sample = st.selectbox("Candidate sample size", (250, 500, 1000, 2000), index=1)
         if select_mode == "Challenge":
             ai_strength = st.selectbox("AI level", tuple(range(11)), index=6)
-            visible = st.checkbox("Oppornent words are visible")
-            alternate = st.checkbox("Choose a word in turns")
-            ai_first = st.checkbox("AI plays first")
+            visible = st.checkbox("Opponent words are visible", value=True)
+            alternate = st.checkbox("Choose a word in turns", value=True)
+            ai_first = st.checkbox("AI plays first", value=True)
 
         st.markdown("App ver {appver} / [wordleaisql ver {libver}](https://github.com/kota7/wordleai-sql)".format(libver=wordleaisql_version, appver=APP_VERSION))
         
@@ -169,7 +169,7 @@ def main():
                 st.write("No answer word consistent with this information")
                 return
             if n_candidates == 1:
-                st.markdown("**{}** should be the answer!".format(candidates[0]))
+                st.markdown("'**{}**' should be the answer!".format(candidates[0]))
                 return
             candidate_sample = ", ".join(candidates[:6])
             if n_candidates > 6:
@@ -198,10 +198,10 @@ def main():
 
         _init_state_if_not_exist("history", [])
         _init_state_if_not_exist("historyBuffer", [])  # infomation not seen by the oppornent
-        _init_state_if_not_exist("answerWord", None)
+        _init_state_if_not_exist("answerWord", None)   # disables the user's enter button until new game is started
         _init_state_if_not_exist("userDoneAt", -1)
         _init_state_if_not_exist("aiDoneAt", -1)
-        _init_state_if_not_exist("aiNext", None)
+        _init_state_if_not_exist("aiNext", None)       # avoid ai to pick word before new game is started
         _init_state_if_not_exist("step", 0)
 
         def _show_history(visible_: bool):
@@ -329,7 +329,7 @@ def main():
         # workaround to locate the ENTER button to the bottom
         for _ in range(3):
             cols[1].write(" ")
-        enter_button = cols[1].button("Enter")
+        enter_button = cols[1].button("Enter", disabled=(st.session_state["answerWord"] is None))
 
         # catch user's decision
         logger.info("Current step: %s", st.session_state["step"])
