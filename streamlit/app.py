@@ -135,7 +135,7 @@ def main():
         # workaround to locate the ENTER button to the bottom
         for _ in range(3):
             cols[2].write(" ")
-            
+
         enter_button = cols[2].button("Enter")
         if enter_button:
             def _validate_input():
@@ -179,7 +179,8 @@ def main():
                 res = ai.evaluate(top_k=15)
             if len(res) > 0:
                 df = pd.DataFrame.from_records(res, columns=res[0]._fields)
-                df = df.rename(columns={"max_n":"Max(n)", "mean_n":"Avg(n)", "mean_entropy": "Expected entropy", "is_candidate": "Can be answer"})
+                df["is_candidate"] = ["yes" if c==1 else "no" for c in df["is_candidate"]]
+                df = df.rename(columns={"max_n":"Max(n)", "mean_n":"Mean(n)", "mean_entropy": "Mean entropy", "is_candidate": "Candidate?"})                
                 df = df.set_index("input_word")
                 st.markdown("*AI suggests the following words to try next*:")
                 st.table(df)
