@@ -1,8 +1,11 @@
 WORDLE AI with SQL Backend
 ==========================
 [![](https://badge.fury.io/py/wordleaisql.svg)](https://badge.fury.io/py/wordleaisql)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/kota7/wordleai-sql/main/streamlit/app.py)
 
-## Usage
+This package provides an [Worldle]((https://www.nytimes.com/games/wordle/index.html)) solver with SQL backend.
+
+## How to use
 
 ```shell
 # Install this library via PyPI
@@ -14,22 +17,18 @@ wordleai-sql
 python wordleai-sql.py
 ```
 
-Note.
-- By default, the program uses SQLite as the backend engine and creates a dabase file named "wordleai.db" in the working directory. For the default vocabfile of about 13K words, the file size is about 8.4GB.
-- For the first run, it will take a while to set up the database.
-- The setup time will be significantly reduced if c++ compiler command (e.g `g++` or `clang++`) is available.
 
-
-## Session example
+## Solver session example
 
 ```shell
-Hello! This is Wordle AI (SQLite backend).
+$ wordleai-sql
 
-12947 remaining candidates: ['yarco', 'knars', 'loamy', 'barps', 'dozed', 'yerks',
-'reggo', 'rowth', 'spoom', 'rewin', '...']
+Hi, this is Wordle AI (SQLite backend, approx).
+
+12947 remaining candidates: ['cigar', 'rebut', 'sissy', 'humph', 'awake', 'blush', 'focal', 'evade', 'naval', 'serve', '...']
 
 Type:
-  '[s]uggest <criterion>'     to let AI suggest a word
+  '[s]uggest <criterion>'     to let AI suggest a word (<criterion> is optional)
   '[u]pdate <word> <result>'  to provide new information
   '[e]xit'                    to finish the session
 
@@ -38,38 +37,37 @@ where
   <result>     is a string of 0 (no match), 1 (partial match), and 2 (exact match)
 
 > s
-Start AI evaluation (2022-02-21 20:59:06.659721)
-End AI evaluation (2022-02-21 20:59:22.748949, elapsed: 0:00:16.089228)
+[INFO] Start AI evaluation (2022-03-09 00:37:13)
+[INFO] End AI evaluation (2022-03-09 00:37:18, elapsed: 0:00:04.153101)
 * Top 20 candidates ordered by mean_entropy
 --------------------------------------------------------------------
   input_word         max_n        mean_n  mean_entropy  is_candidate
 --------------------------------------------------------------------
-       tares           856         301.3         7.464             1
-       lares           830         287.7         7.509             1
-       rales           830         291.0         7.544             1
-       rates           856         310.2         7.562             1
-       teras           856         335.8         7.582             1
-       nares           822         304.5         7.592             1
-       soare           767         302.9         7.598             1
-       tales           864         324.4         7.604             1
-       reais           766         303.7         7.609             1
-       tears           856         348.4         7.627             1
-       arles           830         313.6         7.629             1
-       tores          1098         357.0         7.640             1
-       salet           864         332.5         7.642             1
-       aeros           799         308.9         7.646             1
-       dares           985         351.2         7.649             1
-       reals           830         327.8         7.660             1
-       saner           837         316.9         7.660             1
-       lears           830         330.2         7.671             1
-       lores           983         338.9         7.683             1
-       serai           695         314.2         7.685             1
+       reais            30          12.0         3.094             1
+       laers            33          13.5         3.218             1
+       aeons            35          14.2         3.312             1
+       races            32          14.4         3.323             1
+       leads            34          15.1         3.349             1
+       strae            33          14.8         3.376             1
+       lines            43          16.4         3.386             1
+       soral            35          15.6         3.427             1
+       cries            48          17.4         3.429             1
+       scrae            34          16.2         3.471             1
+       rules            42          17.2         3.478             1
+       oared            41          17.9         3.511             1
+       losen            52          17.9         3.515             1
+       sedan            40          17.6         3.516             1
+       sured            52          19.1         3.546             1
+       artis            45          19.4         3.547             1
+       least            42          18.7         3.549             1
+       stire            46          18.5         3.552             1
+       stria            49          19.3         3.556             1
+       nails            55          18.7         3.557             1
 --------------------------------------------------------------------
-12947 remaining candidates: ['yarco', 'knars', 'loamy', 'barps', 'dozed', 'yerks',
-'reggo', 'rowth', 'spoom', 'rewin', '...']
+12947 remaining candidates: ['cigar', 'rebut', 'sissy', 'humph', 'awake', 'blush', 'focal', 'evade', 'naval', 'serve', '...']
 
 Type:
-  '[s]uggest <criterion>'     to let AI suggest a word
+  '[s]uggest <criterion>'     to let AI suggest a word (<criterion> is optional)
   '[u]pdate <word> <result>'  to provide new information
   '[e]xit'                    to finish the session
 
@@ -77,12 +75,11 @@ where
   <criterion>  is either 'max_n', 'mean_n', or 'mean_entropy'
   <result>     is a string of 0 (no match), 1 (partial match), and 2 (exact match)
 
-> u tares 10120
-38 remaining candidates: ['inter', 'noter', 'ether', 'voter', 'roted', 'citer',
-'luter', 'enter', 'oxter', 'cruet', '...']
+> u races 00000
+896 remaining candidates: ['humph', 'outdo', 'digit', 'pound', 'booby', 'loopy', 'lying', 'moult', 'guild', 'thumb', '...']
 
 Type:
-  '[s]uggest <criterion>'     to let AI suggest a word
+  '[s]uggest <criterion>'     to let AI suggest a word (<criterion> is optional)
   '[u]pdate <word> <result>'  to provide new information
   '[e]xit'                    to finish the session
 
@@ -91,38 +88,37 @@ where
   <result>     is a string of 0 (no match), 1 (partial match), and 2 (exact match)
 
 > s
-Start AI evaluation (2022-02-21 20:59:30.849712)
-End AI evaluation (2022-02-21 20:59:32.386516, elapsed: 0:00:01.536804)
+[INFO] Start AI evaluation (2022-03-09 00:37:35)
+[INFO] End AI evaluation (2022-03-09 00:37:39, elapsed: 0:00:03.439437)
 * Top 20 candidates ordered by mean_entropy
 --------------------------------------------------------------------
   input_word         max_n        mean_n  mean_entropy  is_candidate
 --------------------------------------------------------------------
-       notum             8           4.2         1.691             0
-       ontic             8           4.6         1.843             0
-       mount             8           4.5         1.859             0
-       motif             7           4.4         1.860             0
-       moult            10           4.9         1.874             0
-       muton             8           4.7         1.893             0
-       potin             8           4.7         1.895             0
-       lotic             8           4.7         1.914             0
-       onium             8           4.7         1.914             0
-       mohur             9           4.7         1.916             0
-       optic             7           4.7         1.916             0
-       minor             8           4.8         1.925             0
-       humor             9           5.1         1.939             0
-       pitot             7           5.1         1.960             0
-       rutin             9           4.8         1.993             0
-       milor             9           5.1         1.994             0
-       piton             8           5.3         2.024             0
-       oubit             7           4.7         2.027             0
-       point             8           5.1         2.040             0
-       opium             8           5.2         2.042             0
+       monty            41          16.8         3.454             1
+       gipon            66          20.5         3.546             1
+       lofty            53          20.0         3.686             1
+       bilgy            70          24.2         3.746             1
+       bundt            69          23.2         3.779             1
+       limbo            69          23.6         3.780             1
+       bundy            63          23.5         3.782             1
+       found            56          23.7         3.816             1
+       youth            50          22.6         3.827             1
+       joint            65          23.9         3.895             1
+       downy            61          25.5         3.902             1
+       milko            78          27.5         3.924             1
+       fungo            86          29.6         3.926             1
+       lumbi            77          29.1         3.976             1
+       tupik            68          28.0         3.981             1
+       goopy            76          28.3         4.012             1
+       jolty            59          24.3         4.015             1
+       muhly            65          28.1         4.034             1
+       nouny            59          25.0         4.041             1
+       touzy            49          25.0         4.066             1
 --------------------------------------------------------------------
-38 remaining candidates: ['inter', 'noter', 'ether', 'voter', 'roted', 'citer',
-'luter', 'enter', 'oxter', 'cruet', '...']
+896 remaining candidates: ['humph', 'outdo', 'digit', 'pound', 'booby', 'loopy', 'lying', 'moult', 'guild', 'thumb', '...']
 
 Type:
-  '[s]uggest <criterion>'     to let AI suggest a word
+  '[s]uggest <criterion>'     to let AI suggest a word (<criterion> is optional)
   '[u]pdate <word> <result>'  to provide new information
   '[e]xit'                    to finish the session
 
@@ -130,15 +126,14 @@ where
   <criterion>  is either 'max_n', 'mean_n', or 'mean_entropy'
   <result>     is a string of 0 (no match), 1 (partial match), and 2 (exact match)
 
-> u notum 01100
-'other' should be the answer!
-
+> u monty 22220
+'month' should be the answer!
 Thank you!
 ```
 
 ## Suggestion criteria
 
-There are three criteria for the candidate evaluation: 
+Input words are evaludated by the three criteria as follows: 
 
 - "max_n": Maximum number of the candidate words that would remain.
 - "mean_n": Average number of the candidate words that would remain.
@@ -154,10 +149,18 @@ Hence, the average of `log2(n)` can be seen as the average entropy.
 
 See also the simulation results for a comparison of the criteria (notebook at [simulation/simulation-summary.ipynb](simulation/simulation-summary.ipynb) or view on [nbviewer](https://nbviewer.org/github/kota7/wordleai-sql/blob/main/simulation/simulation-summary.ipynb)).
 
-## Using a custom answer set
 
-- By default, the program uses "vocab.txt" as the word candidate list, which perhaps is compatible with [New York Times version](https://www.nytimes.com/games/wordle/index.html)
-- You may give a different list with `--vocabfile` option. You should also specify `--vocabname` option other than the default ("wordle") because the database setup result would be overwritten.
+## Play and challenge mode
+
+- By default, `wordleai-sql` command starts an interactive solver session.
+- `wordleai-sql --play` starts a self-play game.
+- `wordleai-sql --challenge` starts a competition against an AI.
+
+
+## Using a custom word set
+
+- The default word list is at [wordleaisql/wordle-vocab.txt](wordleaisql/wordle-vocab.txt) as the word list, which perhaps is compatible with [New York Times version](https://www.nytimes.com/games/wordle/index.html)
+- One may give a different list with `--vocabfile` option. You should also specify `--vocabname` option other than the default ("wordle") because the database setup result would be overwritten.
 - The file should contain words of the same length, separated by the line break ("\n").
 - Although not tested thoroughly, the program would work with words containing multibyte characters (with utf8 encoding) or digits.
 - See `vocab-examples/` folder for examples.
@@ -167,29 +170,35 @@ See also the simulation results for a comparison of the criteria (notebook at [s
 wordleai-sql --vocabname myvocab --vocabfile my-vocab.txt
 ```
 
-## Play and challenge mode
-
-- `wordleai-sql --play` starts a self-play game.
-- `wordleai-sql --challenge` starts a competition against an AI.
-
 
 ## Backend options
 
-### SQLite with approximate evaluation
+### SQLite with approximate evaluation (default)
 
 ```shell
-# minimal command to run approx evaluation
 wordleai-sql -b approx
 ```
 
 - With `-b approx` option, we employ approximate evaluation of words by sampling input and/or answer words.
 - The database setup completes quikckly since this does not require precompuation of the judge results.
-- Evaluation completes quickly since small numbers of input and answer words are involved in the calculation.
+- Evaluation also completes quickly since small numbers of input and/or answer words are involved in the calculation.
+- Although approximate, the engine tends to provide close-to-optimal suggestions thanks to the law of large numbers.
+
+### SQLite with full evaluation
+
+```shell
+wordleai-sql -b sqlite
+```
+
+- This engine evaluates all words using the all answer candidates.
+- To enhance the calculation the engine precomputes all judge results for all word pairs on the setup.
+  - The file size becomes about 8.4GB.
+  - The process may take about an hour, depending on the CPU speed.
+  - The time for the setup will be significantly reduced if c++ compiler command (e.g `g++` or `clang++`) is available.
 
 ### Google bigquery backend
 
 ```shell
-# minimal command to run with bigquery engine
 # --vocabname is used as the dataset name
 wordleai-sql -bbq --bq_credential "gcp_credentials.json" --vocabname "wordle_dataset"
 ```
@@ -217,3 +226,14 @@ wordleai-sql -bbq --bq_credential "gcp_credentials.json" --vocabname "wordle_dat
 ## Other options
 
 See `wordleai-sql -h` for other options, which should mostly be self-explanatory.
+
+
+## GUI application
+
+- A browser application built on [streamlit](https://streamlit.io/) is at [streamlit/app.py](streamlit/app.py). This can be run with the following command:
+  ```shell
+  # install dependencies if not
+  pip install pandas streamlit
+  streamlit run ./streamlit/app.py
+  ```
+- The app is also deployed on the [streamlit cloud](https://share.streamlit.io/kota7/wordleai-sql/main/streamlit/app.py).
