@@ -24,7 +24,8 @@ td.letter {
     height: 30px;
     text-align: center;
     border: 5px white solid;
-    border-bottom: 10px white solid;
+    border-bottom: 8px white solid;
+    border-top: 8px white solid;
 
     font-weight: 700;
     font-size: 30px;
