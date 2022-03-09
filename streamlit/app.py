@@ -72,6 +72,9 @@ def make_ai(words: list, word_pair_limit: int=500000, candidate_samplesize: int=
     return ai
 
 def main():
+    st.set_page_config(
+      page_title="Wordle AI SQL"
+    )
     st.markdown("""<style> {} </style>""".format(CSS), unsafe_allow_html=True)
 
     with st.sidebar:
@@ -326,7 +329,7 @@ def main():
             _show_history(visible)
         
         cols = st.columns(2)
-        input_word = cols[0].text_input("Word", max_chars=wordlen, placeholder="weary")
+        input_word = cols[0].text_input("", max_chars=wordlen, placeholder="weary")
         # workaround to locate the ENTER button to the bottom
         for _ in range(3):
             cols[1].write(" ")
