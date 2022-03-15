@@ -156,7 +156,7 @@ def _choose_word_with_weight(dbfile: str, vocabname: str)-> str:
         q = """
         SELECT
           word,
-          weight / log((abs(random()) % 100000 + 0.5) / 100000.0) AS priority
+          -log((abs(random()) % 1000000 + 0.5) / 1000000.0) / weight  AS priority
         FROM
           "{name}_words"
         WHERE
