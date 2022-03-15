@@ -4,7 +4,7 @@ import unittest
 import os
 from tempfile import TemporaryDirectory
 
-from wordleaisql.utils import wordle_judge, decode_judgement, _read_vocabfile
+from wordleaisql.utils import wordle_judge, decode_judgement, _read_vocabfile, default_wordle_vocab
 
 class TestUtils(unittest.TestCase):
     def test_judge(self):
@@ -20,7 +20,17 @@ class TestUtils(unittest.TestCase):
             r = decode_judgement(r)
             r = int(r)
             self.assertEqual(r, int(c[2]), msg="Judge error for {}".format(c))
-    
+
+    def test_default_vocab(self):
+        lens = []
+        for i in range(1, 6):
+            x = default_wordle_vocab(level=i)
+            lens.append(len(x))
+        # all default wordle vocab have the same length
+        #print(lens)
+        self.assertEqual(len(set(lens)), 1, msg="Default vocab length: {}".format(lens))
+        #raise
+
     def test_reader(self):
         with TemporaryDirectory() as d:
             words = ["foo", "bar", "buz"]

@@ -131,7 +131,7 @@ def _read_vocabfile(filepath: str)-> dict:
     return out
 
 def default_vocabfile(level: int=3)-> str:
-    return _package_data_file(os.path.join("vocab", "wordle-level{}.txt.gz".format(level)))
+    return _package_data_file(os.path.join("vocab", "wordle-level{}.txt".format(level)))
 
 def default_wordle_vocab(level: int=3)-> dict:
     vocabfile = default_vocabfile(level)
