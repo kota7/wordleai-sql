@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 from wordleaisql import __version__ as wordleaisql_version
 from wordleaisql.approx import WordleAIApprox
-from wordleaisql.utils import default_vocabfile, default_wordle_vocab, wordle_judge, decode_judgement
+from wordleaisql.utils import default_wordle_vocab, wordle_judge, decode_judgement
 
 # Log message will be printed on the console
 logger = getLogger(__file__)
