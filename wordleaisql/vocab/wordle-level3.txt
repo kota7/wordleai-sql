@@ -10190,7 +10190,7 @@ sling 1
 slink 1
 slipe 0
 slips 1
-slipt 1
+slipt 0
 slish 0
 slits 1
 slive 0
