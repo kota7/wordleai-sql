@@ -13,6 +13,7 @@ i.e. {vocabname} corresponds to the dataset name
 
 import time
 import math
+import sys
 import random
 from logging import getLogger
 logger = getLogger(__name__)
@@ -39,7 +40,7 @@ def _create_dataset(client: bigquery.Client, datasetname: str, location: str=Non
         dataset.location = location
     return client.create_dataset(dataset, exists_ok=True)
 
-def _setup(client: bigquery.Client, vocabname: str, words: list, project: str=None, location: str="US", partition_size: int=200):
+def _setup(client: bigquery.Client, vocabname: str, words: list or dict, project: str=None, location: str="US", partition_size: int=200):
     assert len(words) == len(set(words)), "input_words must be unique"
     wordlens = set(len(w) for w in words)
     assert len(wordlens) == 1, "word length must be equal, but '{}'".format(wordlens)
@@ -56,6 +57,7 @@ def _setup(client: bigquery.Client, vocabname: str, words: list, project: str=No
     #print(vars(dataset))
 
     schema = [bigquery.SchemaField("word", "STRING", mode="REQUIRED"),
+              bigquery.SchemaField("weight", "FLOAT", mode="REQUIRED"),
               bigquery.SchemaField("partid", "INTEGER", mode="REQUIRED")]
     tableid = "{}.{}.words".format(project, vocabname)
     table = bigquery.Table(tableid, schema=schema)
@@ -66,9 +68,16 @@ def _setup(client: bigquery.Client, vocabname: str, words: list, project: str=No
     table = client.create_table(table)
     # we assign partition ID to each word
     #client.query('CREATE OR REPLACE TABLE {project}.{dataset}.words (word STRING, partid INTEGER)'.format(project=project, dataset=vocabname)).result()
-    rows = [(w, i % partition_size) for i, w in enumerate(words)]
+    rows = (
+        [(w, p, i % partition_size) for i, (w, p) in enumerate(words.items())] if isinstance(words, dict) else
+        [(w, 1, i % partition_size) for i, w in enumerate(words)] if isinstance(words, list) else
+        None
+    )
+    if rows is None:
+        raise TypeError("Unsupported type of `words`, '{}'".format(type(words)))
+    #    rows = [(w, i % partition_size) for i, w in enumerate(words)]
     min_partid = 0
-    max_partid = max(row[1] for row in rows)
+    max_partid = max(row[-1] for row in rows)
     # it can take some time until table is found
     time.sleep(20)
     logger.info("Inserting data to table 'words'")
@@ -169,6 +178,26 @@ def _setup(client: bigquery.Client, vocabname: str, words: list, project: str=No
         logger.info("Total bytes processed: %.2f GB, total bytes billed: %.2f GB",
                     1.0*job.total_bytes_processed/1073741824, 1.0*job.total_bytes_billed/1073741824)
 
+# def _ensure_word_weight_column(client: bigquery.Client, vocabname: str, project: str=None):
+#     """If weight column is missing in the words table, add it with a constant 1"""
+#     if project is None:
+#         project = client.project
+#     q = """
+#     SELECT column_name FROM {project}.{dataset}.information_schema.columns
+#     WHERE
+#       table_name = '{project}.{dataset}.words'
+#       AND lower(column_name) = 'weight'
+#     LIMIT 1
+#     """.format(project=project, dataset=vocabname)
+#     job = client.query(q)
+#     res = list(job.result())
+#     if len(res) == 0:  # weight column not exist
+#         job = client.query('ALTER TABLE {project}.{dataset}.words ADD COLUMN weight FLOAT'.format(project=project, dataset=vocabname))
+#         job.result()
+#         logger.info('Added column `%s.%s.words.weight`', project, vocabname)
+#         job = client.query('UPDATE "{project}.{dataset}.words SET weight = 1.0'.format(project=project, dataset=vocabname))
+#         logger.info('Filled `%s.%s.words.weight` with ones', project, vocabname)
+        
 def _evaluate(client: bigquery.Client, vocabname: str, project: str,
               top_k: int=20, criterion: str="mean_entropy", candidates: list=None)-> list:
     # find the number of all words and compare with the number of candidates
@@ -265,6 +294,45 @@ def _words(client: bigquery.Client, vocabname: str, project: str)-> list:
     words = [row[0] for row in rows]
     return words
 
+def _choose_word_with_weight(client: bigquery.Client, vocabname: str, project: str)-> str:
+    # The query below uses the fact that
+    # Prob{ u_i^(1/w_i) > u_j^(1/w_j) } = w_i / (w_i + w_j),
+    #   where u_i, u_j ~ uniform(0, 1).
+    #
+    # References: 
+    #   https://stackoverflow.com/questions/1398113/how-to-select-one-row-randomly-taking-into-account-a-weight
+    #   http://utopia.duth.gr/~pefraimi/research/data/2007EncOfAlg.pdf
+    # 
+    # On Bigquery, rand() is uniform on [0, 1)
+    # We use 1 - rand() to make it to (0, 1] to avoid log(0).
+    #   note. log(1) is okay because it is zero.
+    q = """
+    SELECT
+        word,
+        -log(1 - rand()) / weight AS priority
+    FROM
+        {project}.{dataset}.words
+    WHERE
+        weight > 0
+    ORDER BY priority
+    LIMIT 1
+    """.format(project=project, dataset=vocabname)
+    job = client.query(q)
+    rows = job.result()
+    return next(rows)[0]
+
+def _weight_defined(client: bigquery.Client, vocabname: str, project: str=None)-> bool:
+    """If weight column is missing in the words table, add it with a constant 1"""
+    if project is None:
+        project = client.project
+    q = """
+    SELECT * FROM {project}.{dataset}.words LIMIT 1
+    """.format(project=project, dataset=vocabname)
+    job = client.query(q)
+    res = next(job.result())
+    return ("weight" in res.keys())
+
+
 class WordleAIBigquery(WordleAISQLite):
     """
     Wordle AI with SQLite backend
@@ -274,9 +342,10 @@ class WordleAIBigquery(WordleAISQLite):
     Args:
         vocabname (str):
             Name of vocaburary
-        words (str of list): 
+        words (str or list or dict): 
             If str, the path to a vocabulary file
             If list, the list of words
+            If dict, mapping from word to the weight
             Can be omitted if the vocabname is already in the database and resetup=False
         credential_jsonfile (str):
             Path to the service accound credential file
@@ -302,7 +371,7 @@ class WordleAIBigquery(WordleAISQLite):
         resetup (bool):
             Setup again if the vocabname already exists        
     """
-    def __init__(self, vocabname: str, words: list or str=None,
+    def __init__(self, vocabname: str, words: str or list or dict=None,
                  credential_jsonfile: str=None, project: str=None, location: str="US", partition_size: int=200,
                  decision_metric: str="mean_entropy", candidate_weight: float=0.3, strength: float=6,
                  resetup: bool=False, **kwargs):
@@ -321,10 +390,21 @@ class WordleAIBigquery(WordleAISQLite):
 
         if resetup or vocabname not in self.vocabnames:
             assert words is not None, "`words` must be supplied to setup the vocab '{}'".format(vocabname)
-            words = _read_vocabfile(words) if type(words) == str else _dedup(words)
+            assert words is not None, "`words` must be supplied to setup the vocab '{}'".format(vocabname)
+            _words = (
+                words if isinstance(words, dict) else
+                {w:1.0 for w in words} if isinstance(words, list) else
+                _read_vocabfile(words) if isinstance(words, str) else
+                None
+            )
+            if _words is None:
+                raise TypeError("Unsupported type 'words': '{}'".format(type(words)))
             with _timereport("Setup tables for vocabname '%s'" % vocabname):
                 _setup(client=self.client, vocabname=self.vocabname, words=words,
                        project=self.project, location=self.location, partition_size=partition_size)
+        # else:
+        #     _ensure_word_weight_column(client=self.client, vocabname=self.vocabname, project=self.project)
+
         #self.set_candidates()
         self._info = []                  # infomation of the judge results
         self._nonanswer_words = set([])  # words that cannot become an answer
@@ -349,3 +429,10 @@ class WordleAIBigquery(WordleAISQLite):
         """
         return _evaluate(self.client, self.vocabname, self.project,
                          top_k=top_k, criterion=criterion, candidates=self.candidates)
+
+    def choose_answer_word(self)-> str:
+        """Randomly choose an answer word in accordance with the given weight"""
+        if not _weight_defined(self.client, self.vocabname, self.project):
+            print("Word weight is not defined. Please call `WordleAIBigquery` with `resetup=True` next time", file=sys.stderr)
+            return random.choice(self.words)
+        return _choose_word_with_weight(self.client, self.vocabname, self.project)

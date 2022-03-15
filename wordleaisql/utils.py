@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import gzip
 import sys
 import itertools
 import hashlib
@@ -103,16 +104,25 @@ def _package_data_file(filepath: str)-> str:
         return str(importlib_resources.files("wordleaisql") / filepath)
     raise RuntimeError("File '{}' not found".format(filepath))
 
-def _read_vocabfile(filepath: str)-> list:
+def _read_vocabfile(filepath: str)-> dict:
     assert os.path.isfile(filepath), "'{}' does not exist".format(filepath)
-    with open(filepath) as f:
-        words = [line.strip() for line in f]
-        # remove empty strings, just in case
-        words = [w for w in words if len(w) > 0]
-    return _dedup(words)
+    opener = gzip.open if filepath.endswith(".gz") else open
+    with opener(filepath, "rt") as f:
+        out = {}
+        for line in f:
+            tmp = line.strip()
+            if len(tmp) == 0:
+                continue
+            tmp = tmp.split()
+            if len(tmp) == 1:
+                # add weight 1
+                out[tmp[0]] = 1
+            else:
+                out[tmp[0]] = float(tmp[1])
+    return out
 
-def default_wordle_vocab()-> list:
-    vocabfile =  _package_data_file("wordle-vocab.txt")
+def default_wordle_vocab(level: int=3)-> dict:
+    vocabfile =  _package_data_file(os.path.join("vocab", "wordle-level{}.txt.gz".format(level)))
     words = _read_vocabfile(vocabfile)
     return words
 

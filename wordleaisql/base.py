@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import random
+from typing import Type
 from .utils import wordle_judge, encode_judgement, WordEvaluation, _dedup, _read_vocabfile
 
 class WordleAI:
@@ -14,15 +15,27 @@ class WordleAI:
     Args:
         vocabname (str):
             Name of vocaburary
-        words (str of list):
+        words (str or list or dict):
             If str, the path to a vocabulary file
             If list, the list of words
+            If dict, mapping from word to the weight
     """
-    def __init__(self, vocabname: str, words: list or str=None, **kwargs):
+    def __init__(self, vocabname: str, words: str or list or dict=None, **kwargs):
         self.vocabname = vocabname
         self._vocabnames = [vocabname]  # no storage of other vocabs
         assert words is not None, "`words` must be supplied to setup the vocab '{}'".format(vocabname)
-        self._words = _read_vocabfile(words) if type(words) == str else _dedup(words)
+        if isinstance(words, dict):
+            # maps a word to float
+            self._words = words.copy()
+        elif isinstance(words, list):
+            # list of words with equal weight
+            self._words = {w:1.0 for w in words}
+        elif isinstance(words, str):
+            # file path
+            self._words = _read_vocabfile(words)
+        else:
+            raise TypeError("Unsupported type 'words': '{}'".format(type(words)))
+        assert len(self._words) > 0, "Empty vocab is not allowed"
         wordlens = set(len(w) for w in self.words)
         assert len(wordlens) == 1, "word length must be equal, but '{}'".format(wordlens)
 
@@ -41,7 +54,7 @@ class WordleAI:
     @property
     def words(self)-> list:
         """All words that can be inputted"""
-        return self._words
+        return list(self._words.keys())
 
     @property
     def candidates(self)-> list:
@@ -118,3 +131,14 @@ class WordleAI:
             return random.choice(self.candidates)
         print("Warning: There is no answer candidates remaining")
         return random.choice(self.words)
+    
+    def choose_answer_word(self):
+        """Randomly choose an answer word in accordance with the given weight"""
+        vals = []
+        weights = []
+        for w, p in self._words.items():
+            if p > 0:
+                vals.append(w)
+                weights.append(p)
+        assert len(vals) > 0, "There is no word with positive weight"
+        return random.choices(vals, weights, k=1)[0]
