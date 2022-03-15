@@ -18,7 +18,7 @@ setup(
     packages=['wordleaisql'],
     install_requires=['tqdm'],
     #test_require=[],
-    package_data={"wordleaisql": ["wordle-judge-all.cpp", "vocab/*.txt.gz"]},
+    package_data={"wordleaisql": ["wordle-judge-all.cpp", "vocab/*.txt"]},
     entry_points={'console_scripts': ['wordleai-sql=wordleaisql.api:main']},
     
     classifiers=[
