@@ -130,8 +130,11 @@ def _read_vocabfile(filepath: str)-> dict:
         raise ValueError("All weights are zero")
     return out
 
+def default_vocabfile(level: int=3)-> str:
+    return _package_data_file(os.path.join("vocab", "wordle-level{}.txt.gz".format(level)))
+
 def default_wordle_vocab(level: int=3)-> dict:
-    vocabfile =  _package_data_file(os.path.join("vocab", "wordle-level{}.txt.gz".format(level)))
+    vocabfile = default_vocabfile(level)
     words = _read_vocabfile(vocabfile)
     return words
 
