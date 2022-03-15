@@ -1,2 +1,2 @@
 pandas
-wordleaisql>=0.2.8
+wordleaisql>=0.2.7
