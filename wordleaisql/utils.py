@@ -118,7 +118,16 @@ def _read_vocabfile(filepath: str)-> dict:
                 # add weight 1
                 out[tmp[0]] = 1
             else:
-                out[tmp[0]] = float(tmp[1])
+                v = float(tmp[1])
+                if v < 0:
+                    logger.warning("Negative weight is not allowed, '%s' is changed to zero", v)
+                    v = 0
+                out[tmp[0]] = v
+    # some weight must be positive
+    flg = any(p > 0 for p in out.values())
+    #print(out.values())
+    if not flg:
+        raise ValueError("All weights are zero")
     return out
 
 def default_wordle_vocab(level: int=3)-> dict:

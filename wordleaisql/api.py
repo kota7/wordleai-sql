@@ -98,7 +98,7 @@ def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_
     print("Thank you!")
 
 
-def play(words: list or dict):
+def play(words: list or dict, vocabname: str="No name"):
     if isinstance(words, list):
         words = {w:1 for w in words}  # assign equal weight
 
@@ -106,7 +106,7 @@ def play(words: list or dict):
     if len(words) > 5:
         tmp.append("...")
     print("")
-    print("Wordle game with %d words, e.g. %s" % (len(words), tmp))
+    print("Enjoy wordle game (vocabname: '%s', containing %d words, e.g. %s)" % (vocabname, len(words), tmp))
     print("")
     print("Type your guess, or 'give up' to finish the game")
 
@@ -158,7 +158,7 @@ def challenge(ai: WordleAI, max_round: int=20, visible: bool=False,
     if n_words > 5:
         tmp.append("...")
     print("")
-    print("Wordle game against %s level %s" % (ai.name, ai.strength))
+    print("Wordle game against %s, AI strength: %s, vocabname: %s" % (ai.name, ai.strength, ai.vocabname))
     print("%d words, e.g. %s" % (n_words, tmp))
     print("")
     print("Type your guess, or 'give up' to finish the game")
@@ -351,7 +351,7 @@ def main():
     #print(words)
     if args.play:
         while True:
-            play(words)
+            play(words, vocabname=vocabname)
             while True:
                 ans = input("One more game? (y/n) > ")
                 ans = ans.strip().lower()[0:1]
