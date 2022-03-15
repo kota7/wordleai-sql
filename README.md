@@ -164,7 +164,7 @@ See also the simulation results for a comparison of the criteria (notebook at [s
 
 ## Using a custom word set
 
-- The default word list is at [wordleaisql/vocab/wordle-level3.txt.gz](wordleaisql/vocab/wordle-level3.txt.gz). The list perhaps is compatible with [New York Times version](https://www.nytimes.com/games/wordle/index.html), with different choice of possible answer words.
+- The default word list is at [wordleaisql/vocab/wordle-level3.txt](wordleaisql/vocab/wordle-level3.txt). The list perhaps is compatible with [New York Times version](https://www.nytimes.com/games/wordle/index.html), with different choice of possible answer words.
 - One may use a different list with `--vocabfile` option.
   - A file should contain words of the same length, separated by the line break ("\n").
   - Each line may contain a nonnegative numeric value separated by a space, which is used as the relative probability that this word is chosen as the answer (in play and challenge mode). If not supecified, the word is given the weight one.
