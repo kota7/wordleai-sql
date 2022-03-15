@@ -210,8 +210,8 @@ def _choose_word_with_weight(db: str or sqlite3.Connection, vocabname: str)-> st
         #   where u_i, u_j ~ uniform(0, 1).
         #
         # References: 
+        #   https://utopia.duth.gr/~pefraimi/research/data/2007EncOfAlg.pdf
         #   https://stackoverflow.com/questions/1398113/how-to-select-one-row-randomly-taking-into-account-a-weight
-        #   http://utopia.duth.gr/~pefraimi/research/data/2007EncOfAlg.pdf
         # 
         # On SQLite, random() generate an integer from [-9223372036854775808, +9223372036854775808]
         # Remove the sign and take mod n to make them roughly uniform on [0, n-1]
