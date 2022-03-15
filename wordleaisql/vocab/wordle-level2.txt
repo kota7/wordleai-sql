@@ -178,7 +178,7 @@ agios 0
 agism 0
 agist 0
 agita 0
-aglee 1
+aglee 0
 aglet 0
 agley 0
 agloo 0
@@ -216,7 +216,7 @@ aidoi 0
 aidos 0
 aiery 0
 aigas 0
-aight 1
+aight 0
 ailed 0
 aimed 1
 aimer 0
