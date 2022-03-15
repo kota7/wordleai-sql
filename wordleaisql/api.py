@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import random
 import re
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
@@ -97,17 +98,27 @@ def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_
     print("Thank you!")
 
 
-def play(words: list):
-    tmp = words[:5]
+def play(words: list or dict, vocabname: str="No name"):
+    if isinstance(words, list):
+        words = {w:1 for w in words}  # assign equal weight
+
+    tmp = list(words)[:5]
     if len(words) > 5:
         tmp.append("...")
     print("")
-    print("Wordle game with %d words, e.g. %s" % (len(words), tmp))
+    print("Enjoy wordle game (vocabname: '%s', containing %d words, e.g. %s)" % (vocabname, len(words), tmp))
     print("")
     print("Type your guess, or 'give up' to finish the game")
 
     # pick an answer randomly
-    answer_word = random.choice(words)
+    vals = []
+    weights = []
+    for w, p in words.items():
+        if p > 0:
+            vals.append(w)
+            weights.append(p)
+    assert len(vals) > 0, "There is no word with positive weight"
+    answer_word = random.choices(vals, weights, k=1)[0]
     wordlen = len(answer_word)
         
     # define a set version of words for quick check for existence
@@ -147,14 +158,14 @@ def challenge(ai: WordleAI, max_round: int=20, visible: bool=False,
     if n_words > 5:
         tmp.append("...")
     print("")
-    print("Wordle game against %s level %s" % (ai.name, ai.strength))
+    print("Wordle game against %s, AI strength: %s, vocabname: %s" % (ai.name, ai.strength, ai.vocabname))
     print("%d words, e.g. %s" % (n_words, tmp))
     print("")
     print("Type your guess, or 'give up' to finish the game")
     print("")
 
     # pick an answer randomly
-    answer_word = random.choice(ai.words)
+    answer_word = ai.choose_answer_word()
     wordlen = len(answer_word)
 
     # define a set version of words for quick check for existence
@@ -277,7 +288,7 @@ def challenge(ai: WordleAI, max_round: int=20, visible: bool=False,
 def main():
     parser = ArgumentParser(description="Wordle AI with SQL backend", formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-b", "--backend", type=str, default="approx", choices=["sqlite", "approx", "bq", "random"], help="AI type")
-    parser.add_argument("--vocabname", default="wordle", type=str, help="Name of vocabulary")
+    parser.add_argument("--vocabname", default=None, type=str, help="Name of vocabulary")
     parser.add_argument("--vocabfile", type=str, help="Text file containing words. If not supplied, default wordle vocab is used")
     parser.add_argument("--resetup", action="store_true", help="Setup the vocabulary if already exists")
     parser.add_argument("--sqlitefile", type=str, 
@@ -298,6 +309,7 @@ def main():
     parser.add_argument("--num_suggest", type=int, default=20, help="Number of suggestion to print")
 
     parser.add_argument("--play", action="store_true", help="Play your own game without AI")
+    parser.add_argument("--answer_difficulty", type=int, default=3, choices=[1,2,3,4,5], help="Answer word difficulty from 1 (basic) to 5 (unlimited)")
     parser.add_argument("--challenge", action="store_true", help="Challenge AI")
     parser.add_argument("--max_round", type=int, default=20, help="Maximum rounds in challenge mode")
     parser.add_argument("--visible", action="store_true", help="Opponent words are visible in challenge mode")
@@ -317,17 +329,29 @@ def main():
     parser.add_argument("--version", action="store_true", help="Show the program version")
 
     args = parser.parse_args()
+    #print(args)
     if args.version:
         print("wordleaisql v%s" % __version__)
         return
     basicConfig(level=10 if args.debug else 20, format="[%(levelname)s] %(message)s")
 
     #print(args)
-    words = default_wordle_vocab() if args.vocabfile is None else _read_vocabfile(args.vocabfile)
+    if args.vocabfile is None:
+        words = default_wordle_vocab(args.answer_difficulty)
+        vocabname = args.vocabname
+        if vocabname is None:
+            vocabname = ("wordle_lev%s" % args.answer_difficulty)
+        #print(vocabname)
+    else:
+        words = _read_vocabfile(args.vocabfile)
+        vocabname = args.vocabname
+        if vocabname is None:
+            vocabname = re.sub(r"\..*$", "", os.path.basename(args.vocabfile))
+
     #print(words)
     if args.play:
         while True:
-            play(words)
+            play(words, vocabname=vocabname)
             while True:
                 ans = input("One more game? (y/n) > ")
                 ans = ans.strip().lower()[0:1]
@@ -340,25 +364,25 @@ def main():
     if args.backend == "sqlite":
         if args.inmemory:
             logger.warning("`--inmemory` only applicable with `-b approx`")
-        ai = WordleAISQLite(args.vocabname, words, dbfile=args.sqlitefile, resetup=args.resetup,
+        ai = WordleAISQLite(vocabname, words, dbfile=args.sqlitefile, resetup=args.resetup,
                             decision_metric=args.decision_metric, candidate_weight=args.candidate_weight, strength=args.ai_strength,
                             use_cpp=(not args.no_cpp), cpp_recompile=args.cpp_recompile, cpp_compiler=args.cpp_compiler)
         logger.info("SQLite database: '%s', vocabname: '%s'", ai.dbfile, ai.vocabname)
     elif args.backend == "approx":
-        ai = WordleAIApprox(args.vocabname, words, dbfile=args.sqlitefile, inmemory=args.inmemory, resetup=args.resetup,
+        ai = WordleAIApprox(vocabname, words, dbfile=args.sqlitefile, inmemory=args.inmemory, resetup=args.resetup,
                             word_pair_limit=args.word_pair_limit, candidate_samplesize=args.candidate_samplesize,
                             decision_metric=args.decision_metric, candidate_weight=args.candidate_weight, strength=args.ai_strength)
         logger.info("SQLite database: '%s', word pair limit: %d, answer word sample size: %d, vocabname: '%s'",
                     ai.dbfile, ai.word_pair_limit, ai.candidate_samplesize, ai.vocabname)
     elif args.backend == "bq":
         from .bigquery import WordleAIBigquery
-        ai = WordleAIBigquery(args.vocabname, words, resetup=args.resetup,
+        ai = WordleAIBigquery(vocabname, words, resetup=args.resetup,
                               credential_jsonfile=args.bq_credential, project=args.bq_project,
                               location=args.bq_location, partition_size=args.partition_size,
                               decision_metric=args.decision_metric, candidate_weight=args.candidate_weight, strength=args.ai_strength)
         logger.info("GCP project: '%s', location: '%s', vocabname: '%s'", ai.project, ai.location, ai.vocabname)
     elif args.backend == "random":
-        ai = WordleAI(args.vocabname, words)
+        ai = WordleAI(vocabname, words)
     else:
         raise ValueError("Backend not supported '%s'" % args.backend)
 

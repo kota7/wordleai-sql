@@ -10,6 +10,7 @@ Only table created:
 """
 
 import os
+import sys
 import math
 import random
 import sqlite3
@@ -33,7 +34,7 @@ def _connect(db: str or sqlite3.Connection)-> sqlite3.Connection:
     else:
         raise TypeError("`db` must be either str or sqlite3.Connection, but '{}'".format(type(db)))
 
-def _setup(db: str or sqlite3.Connection, vocabname: str, words: list):
+def _setup(db: str or sqlite3.Connection, vocabname: str, words: list or dict):
     assert len(words) == len(set(words)), "input_words must be unique"
     wordlens = set(len(w) for w in words)
     assert len(wordlens) == 1, "word length must be equal, but '{}'".format(wordlens)
@@ -41,11 +42,31 @@ def _setup(db: str or sqlite3.Connection, vocabname: str, words: list):
     with _connect(db) as conn:
         c = conn.cursor()
         c.execute('DROP TABLE IF EXISTS "{name}_words_approx"'.format(name=vocabname))
-        c.execute('CREATE TABLE "{name}_words_approx" (word TEXT PRIMARY KEY)'.format(name=vocabname))
-        params = [(w,) for w in words]
-        c.executemany('INSERT INTO "{name}_words_approx" VALUES (?)'.format(name=vocabname), params)
+        c.execute('CREATE TABLE "{name}_words_approx" (word TEXT PRIMARY KEY, weight FLOAT)'.format(name=vocabname))
+        params = (
+            words.items() if isinstance(words, dict) else
+            [(w, 1) for w in words] if isinstance(words, list) else
+            None
+        )
+        if params is None:
+            raise TypeError("Unsupported type of `words`, '{}'".format(type(words)))
+        c.executemany('INSERT INTO "{name}_words_approx" VALUES (?,?)'.format(name=vocabname), params)
         c.execute('CREATE INDEX "{name}_words_approx_idx" ON "{name}_words_approx" (word)'.format(name=vocabname))
         conn.commit()
+
+# def _ensure_word_weight_column(dbfile: str, vocabname: str):
+#     """If weight column is missing in the words table, add it with a constant 1"""
+#     with sqlite3.connect(dbfile) as conn:
+#         c = conn.cursor()
+#         # check the existing column
+#         c.execute('SELECT * FROM "{name}_words_approx" LIMIT 1'.format(name=vocabname))
+#         exist = any(col[0].lower() == "weight" for col in c.description)
+#         if not exist:
+#             c.execute('ALTER TABLE "{name}_words_approx" ADD weight FLOAT'.format(name=vocabname))
+#             logger.info('Added column `"%s_words_approx".weight`', vocabname)
+#             c.execute('UPDATE "{name}_words_approx" SET weight = 1.0'.format(name=vocabname))
+#             logger.info('Filled `"%s_words_approx".weight` with ones', vocabname)
+#         conn.commit()
 
 def _evaluate(db: str or sqlite3.Connection, vocabname: str, top_k: int=20, criterion: str="mean_entropy", candidates: list=None,
               word_pair_limit: int=500000, candidate_samplesize: int=500)-> list:
@@ -179,6 +200,50 @@ def _words(db: str or sqlite3.Connection, vocabname: str)-> list:
         words = [row[0] for row in c]
     return words
 
+def _choose_word_with_weight(db: str or sqlite3.Connection, vocabname: str)-> str:    
+    with _connect(db) as conn:
+        sqlite3.enable_callback_tracebacks(True)
+        conn.create_function("log", 1, math.log)
+        c = conn.cursor()
+        # The query below uses the fact that
+        # Prob{ u_i^(1/w_i) > u_j^(1/w_j) } = w_i / (w_i + w_j),
+        #   where u_i, u_j ~ uniform(0, 1).
+        #
+        # References: 
+        #   https://stackoverflow.com/questions/1398113/how-to-select-one-row-randomly-taking-into-account-a-weight
+        #   http://utopia.duth.gr/~pefraimi/research/data/2007EncOfAlg.pdf
+        # 
+        # On SQLite, random() generate an integer from [-9223372036854775808, +9223372036854775808]
+        # Remove the sign and take mod n to make them roughly uniform on [0, n-1]
+        # Then plus 0.5 to avoid zero, i.e. uniform on [0.5, ..., n-0.5]
+        # Dividing by n, uniform on [0.5/n, ... 1-0.5/n]
+        # With n large enough, the retult is roughly uniform on (0, 1)
+        q = """
+        SELECT
+          word,
+          weight / log((abs(random()) % 100000 + 0.5) / 100000.0) AS priority,
+          weight
+        FROM
+          "{name}_words_approx"
+        WHERE
+          weight > 0
+        ORDER BY priority
+        LIMIT 1
+        """.format(name=vocabname)
+        c.execute(q)
+        ans = c.fetchall()
+    #print(ans)
+    return ans[0][0]
+
+def _weight_defined(db: str or sqlite3.Connection, vocabname: str)-> bool:
+    with _connect(db) as conn:
+        c = conn.cursor()
+        # check the existing column
+        c.execute('SELECT * FROM "{name}_words_approx" LIMIT 1'.format(name=vocabname))
+        for col in c.description:
+            if col[0].lower() == "weight":
+                return True
+    return False
 
 class WordleAIApprox(WordleAISQLite):
     """
@@ -192,9 +257,10 @@ class WordleAIApprox(WordleAISQLite):
     Args:
         vocabname (str):
             Name of vocaburary
-        words (str of list): 
+        words (str or list or dict): 
             If str, the path to a vocabulary file
             If list, the list of words
+            If dict, mapping from word to the weight
             Can be omitted if the vocabname is already in the database and resetup=False
         dbfile (str):
             SQLite database file
@@ -249,9 +315,18 @@ class WordleAIApprox(WordleAISQLite):
         #print("vocabnames", self.vocabnames)
         if resetup or (vocabname not in self.vocabnames):
             assert words is not None, "`words` must be supplied to setup the vocab '{}'".format(vocabname)
-            words = _read_vocabfile(words) if type(words) == str else _dedup(words)
+            _words = (
+                words if isinstance(words, dict) else
+                {w:1.0 for w in words} if isinstance(words, list) else
+                _read_vocabfile(words) if isinstance(words, str) else
+                None
+            )
+            if _words is None:
+                raise TypeError("Unsupported type 'words': '{}'".format(type(words)))
             logger.info("Setup tables for vocabname '%s'", vocabname)
             _setup(db=self.db, vocabname=vocabname, words=words)
+        # else:
+        #     _ensure_word_weight_column(dbfile, vocabname)  # make sure previously created words table has the weight column
 
         self._info = []                  # infomation of the judge results
         self._nonanswer_words = set([])  # words that cannot become an answer
@@ -288,3 +363,10 @@ class WordleAIApprox(WordleAISQLite):
         #                  word_pair_limit=self.word_pair_limit, candidate_samplesize=self.candidate_samplesize)
         return _evaluate(self.db, self.vocabname, top_k=top_k, criterion=criterion, candidates=self.candidates,
                          word_pair_limit=self.word_pair_limit, candidate_samplesize=self.candidate_samplesize)
+
+    def choose_answer_word(self)-> str:
+        """Randomly choose an answer word in accordance with the given weight"""
+        if not _weight_defined(self.db, self.vocabname):
+            print("Word weight is not defined. Please call `WordleAIApprox` with `resetup=True` next time", file=sys.stderr)
+            return random.choice(self.words)
+        return _choose_word_with_weight(self.db, self.vocabname)

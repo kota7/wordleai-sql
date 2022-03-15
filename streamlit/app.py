@@ -8,14 +8,14 @@ import pandas as pd
 import streamlit as st
 from wordleaisql import __version__ as wordleaisql_version
 from wordleaisql.approx import WordleAIApprox
-from wordleaisql.utils import default_wordle_vocab, wordle_judge, decode_judgement
+from wordleaisql.utils import default_vocabfile, default_wordle_vocab, wordle_judge, decode_judgement
 
 # Log message will be printed on the console
 logger = getLogger(__file__)
 
 
 # constants
-APP_VERSION = "0.0.4"
+APP_VERSION = "0.0.5"
 WORD_PAIR_LIMIT = 500000
 CANDIDATE_SAMPLE_SIZE = 500
 CSS = """
@@ -65,7 +65,7 @@ def _init_state_if_not_exist(key: str, value):
 # Since making an AI object is trivial for typical vocabs with 10k words,
 #   I let the AI is generated again at every rerun.
 # @st.cache(allow_output_mutation=True)  # <-- this works but shows 'Running make_ai(...)' for a sec
-def make_ai(words: list, word_pair_limit: int=500000, candidate_samplesize: int=500, strength: float=6):
+def make_ai(words: list or dict, word_pair_limit: int=500000, candidate_samplesize: int=500, strength: float=6):
     logger.info("Generating AI")
     ai = WordleAIApprox(vocabname="wordle", words=words, inmemory=True, strength=strength,
                         word_pair_limit=word_pair_limit, candidate_samplesize=candidate_samplesize)
@@ -86,6 +86,12 @@ def main():
             visible = st.checkbox("Opponent words are visible", value=True)
             alternate = st.checkbox("Choose a word in turns", value=True)
             ai_first = st.checkbox("AI plays first", value=True)
+            answer_difficulty = st.selectbox(
+                "Answer word difficulty", (1, 2, 3, 4, 5), index=2,
+                format_func=lambda a: "1 (basic)" if a==1 else "5 (unlimited)" if a==5 else str(a),
+                help=("Change the possible answer set from 1 (basic) to 5 (unlimited). "
+                      "Adjust this option to reduce the chance that you do not know the answer word. "
+                      "This does not change the words that you can input."))
 
         st.markdown("App ver {appver} / [wordleaisql ver {libver}](https://github.com/kota7/wordleai-sql)".format(libver=wordleaisql_version, appver=APP_VERSION))
         
@@ -194,7 +200,7 @@ def main():
             _eval()
 
     elif select_mode == "Challenge":
-        ai = make_ai(default_wordle_vocab(), word_pair_limit=WORD_PAIR_LIMIT, candidate_samplesize=CANDIDATE_SAMPLE_SIZE, strength=ai_strength)
+        ai = make_ai(default_wordle_vocab(answer_difficulty), word_pair_limit=WORD_PAIR_LIMIT, candidate_samplesize=CANDIDATE_SAMPLE_SIZE)
         words_set = set(ai.words)
         for w in words_set:
             wordlen = len(w)
@@ -291,7 +297,7 @@ def main():
         if st.button("New Game"):
             st.session_state["history"].clear()
             st.session_state["historyBuffer"].clear()
-            st.session_state["answerWord"] = random.choice(list(words_set))
+            st.session_state["answerWord"] = ai.choose_answer_word()
             st.session_state["userDoneAt"] = -1
             st.session_state["aiDoneAt"] = -1
             st.session_state["aiNext"] = ai_first
@@ -377,9 +383,6 @@ def main():
                 st.session_state["historyBuffer"].append((ai_word, ai_res, False))
             st.session_state["step"] += 1
             st.experimental_rerun()  # rerun to update the info
-
-
-    
 
 
 if __name__ == "__main__":

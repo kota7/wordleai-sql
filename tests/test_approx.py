@@ -4,6 +4,7 @@ import unittest
 import os
 import math
 from tempfile import TemporaryDirectory
+from wordleaisql.sqlite import WordleAISQLite
 
 from wordleaisql.approx import WordleAIApprox
 
@@ -73,7 +74,6 @@ class TestApprox(unittest.TestCase):
                 ans = expected[row[0]]
                 for a, b in zip(row[1:], ans):
                     self.assertAlmostEqual(a, b, msg="Error at the second evaluation of '{}'".format(row[0]), places=3)
-            
 
             # ai should pick a word
             word = ai.pick_word()
@@ -146,13 +146,11 @@ class TestApprox(unittest.TestCase):
             ans = expected[row[0]]
             for a, b in zip(row[1:], ans):
                 self.assertAlmostEqual(a, b, msg="Error at the second evaluation of '{}'".format(row[0]), places=3)
-        
 
         # ai should pick a word
         word = ai.pick_word()
         self.assertEqual(type(word), str)
         self.assertTrue(word in ai.words)
-
 
 
     def test_words_omit(self):
@@ -243,3 +241,16 @@ class TestApprox(unittest.TestCase):
 
             # for debugging, print eval result
             # assert False
+
+    def test_weight(self):
+        words = {"a": 1, "b": 0, "c": 1}
+        with TemporaryDirectory() as d:
+            dbfile = os.path.join(d, "test.db")
+            ai = WordleAIApprox("test", words, dbfile=dbfile)
+            picked = set(ai.choose_answer_word() for _ in range(1000))
+            self.assertTrue("b" not in picked, msg="Picked answers (temp dbfile): {}".format(picked))
+
+        words = {"a": 0, "b": 1, "c": 1}
+        ai = WordleAIApprox("test", words, inmemory=True)
+        picked = set(ai.choose_answer_word() for _ in range(1000))
+        self.assertTrue("a" not in picked, msg="Picked answers (inmemory): {}".format(picked))

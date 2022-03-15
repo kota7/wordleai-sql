@@ -131,3 +131,11 @@ class TestSQLite(unittest.TestCase):
         self.assertTrue(_create_ai(["松竹梅", "大中小"]))
         self.assertRaises(Exception, _create_ai, ["3.1415", "2.7182", "1.23456"])
         self.assertTrue(_create_ai(["12345", "67890"]))
+
+    def test_weight(self):
+        words = {"a": 1, "b": 0, "c": 1}
+        with TemporaryDirectory() as d:
+            dbfile = os.path.join(d, "test.db")
+            ai = WordleAISQLite("test", words, dbfile=dbfile)
+            picked = set(ai.choose_answer_word() for _ in range(1000))
+            self.assertTrue("b" not in picked, msg="Picked answers: {}".format(picked))
