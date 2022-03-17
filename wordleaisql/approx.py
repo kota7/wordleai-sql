@@ -363,8 +363,11 @@ class WordleAIApprox(WordleAISQLite):
         return _evaluate(self.db, self.vocabname, top_k=top_k, criterion=criterion, candidates=self.candidates,
                          word_pair_limit=self.word_pair_limit, candidate_samplesize=self.candidate_samplesize)
 
-    def choose_answer_word(self)-> str:
+    def choose_answer_word(self, weighted: bool=True)-> str:
         """Randomly choose an answer word in accordance with the given weight"""
+        if not weighted:
+            return random.choice(self.words)
+            
         if not _weight_defined(self.db, self.vocabname):
             print("Word weight is not defined. Please call `WordleAIApprox` with `resetup=True` next time", file=sys.stderr)
             return random.choice(self.words)

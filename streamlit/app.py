@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 import random
 from logging import getLogger, basicConfig
 
@@ -8,7 +9,7 @@ import pandas as pd
 import streamlit as st
 from wordleaisql import __version__ as wordleaisql_version
 from wordleaisql.approx import WordleAIApprox
-from wordleaisql.utils import default_wordle_vocab, wordle_judge, decode_judgement
+from wordleaisql.utils import default_wordle_vocab, wordle_judge, decode_judgement, read_vocabfile
 
 # Log message will be printed on the console
 logger = getLogger(__file__)
@@ -71,6 +72,9 @@ def make_ai(words: list or dict, word_pair_limit: int=500000, candidate_samplesi
                         word_pair_limit=word_pair_limit, candidate_samplesize=candidate_samplesize)
     return ai
 
+def wordle_vocabfile(level: int):
+    return os.path.join(os.path.dirname(__file__), "wordle-level{}.txt".format(level))
+
 def main():
     st.set_page_config(
       page_title="Wordle AI SQL"
@@ -87,7 +91,7 @@ def main():
             alternate = st.checkbox("Choose a word in turns", value=True)
             ai_first = st.checkbox("AI plays first", value=True)
             answer_difficulty = st.selectbox(
-                "Answer word difficulty", (1, 2, 3, 4, 5), index=2,
+                "Answer word difficulty", (1, 2, 3, 4, 5), index=1,
                 format_func=lambda a: "1 (basic)" if a==1 else "5 (unlimited)" if a==5 else str(a),
                 help=("Change the possible answer set from 1 (basic) to 5 (unlimited). "
                       "Adjust this option to reduce the chance that you do not know the answer word. "
@@ -200,7 +204,7 @@ def main():
             _eval()
 
     elif select_mode == "Challenge":
-        ai = make_ai(default_wordle_vocab(answer_difficulty), word_pair_limit=WORD_PAIR_LIMIT, candidate_samplesize=CANDIDATE_SAMPLE_SIZE)
+        ai = make_ai(read_vocabfile(wordle_vocabfile(answer_difficulty)), word_pair_limit=WORD_PAIR_LIMIT, candidate_samplesize=CANDIDATE_SAMPLE_SIZE)
         words_set = set(ai.words)
         for w in words_set:
             wordlen = len(w)

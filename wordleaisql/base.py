@@ -132,8 +132,11 @@ class WordleAI:
         print("Warning: There is no answer candidates remaining")
         return random.choice(self.words)
     
-    def choose_answer_word(self):
+    def choose_answer_word(self, weighted: bool=True):
         """Randomly choose an answer word in accordance with the given weight"""
+        if not weighted:
+            return random.choice(self.words)
+
         vals = []
         weights = []
         for w, p in self._words.items():
