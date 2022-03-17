@@ -160,7 +160,7 @@ See also the simulation results for a comparison of the criteria (notebook at [s
 
 ## Using a custom word set
 
-- The default word list is at [wordleaisql/vocab/wordle-vocab.txt](wordleaisql/vocab/wordle-vocab.txt). The list perhaps is compatible with [New York Times version](https://www.nytimes.com/games/wordle/index.html).
+- The default word list is at [wordleaisql/vocab/wordle-vocab.txt](wordleaisql/vocab/wordle-vocab.txt). The list perhaps is compatible with the original at [New York Times version](https://www.nytimes.com/games/wordle/index.html).
 - One may use a custom word list by specifying `--vocabfile=<file path>` option.
   - A file should contain words of the same length, separated by the line break ("\n").
   - Each line may contain a nonnegative numeric value separated by a space, which is used as the relative probability that this word is chosen as the answer (in play and challenge mode). If not supecified, the word is given the weight one.
