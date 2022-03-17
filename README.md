@@ -155,17 +155,13 @@ See also the simulation results for a comparison of the criteria (notebook at [s
 - By default, `wordleai-sql` command starts an interactive solver session.
 - `wordleai-sql --play` starts a self-play game.
 - `wordleai-sql --challenge` starts a competition against an AI.
-- With `--answer_difficulty` option, one can change the set of possible answer words in the play and challenge mode. The possible choices are`1` for basic to `5` unlimited. Default is `3`.
-  ```shell
-  # Example
-  wordleai-sql --challenge --answer_difficulty 1  # basic words only
-  ```
+- In the play and challenge mode, the answer word is chosen in accordance with the answer weight by default. One can set `--no_answer_weight` option to make all words potentially become an answer word.
 
 
 ## Using a custom word set
 
-- The default word list is at [wordleaisql/vocab/wordle-level3.txt](wordleaisql/vocab/wordle-level3.txt). The list perhaps is compatible with [New York Times version](https://www.nytimes.com/games/wordle/index.html), with different choice of possible answer words.
-- One may use a different list with `--vocabfile` option.
+- The default word list is at [wordleaisql/vocab/wordle-vocab.txt](wordleaisql/vocab/wordle-vocab.txt). The list perhaps is compatible with [New York Times version](https://www.nytimes.com/games/wordle/index.html).
+- One may use a custom word list by specifying `--vocabfile=<file path>` option.
   - A file should contain words of the same length, separated by the line break ("\n").
   - Each line may contain a nonnegative numeric value separated by a space, which is used as the relative probability that this word is chosen as the answer (in play and challenge mode). If not supecified, the word is given the weight one.
   - A file can be gzip compressed, where the filename must end with ".gz". 

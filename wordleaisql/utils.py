@@ -99,7 +99,8 @@ def _package_data_file(filepath: str)-> str:
         # this is a workaround I found
         with importlib.resources.path("wordleaisql", filepath) as f:
             return str(f)
-    except:
+    except Exception as e:
+        logger.info("Error finding package data file '%s': '%s'", filepath, e)
         import importlib_resources
         return str(importlib_resources.files("wordleaisql") / filepath)
     raise RuntimeError("File '{}' not found".format(filepath))
@@ -130,11 +131,13 @@ def _read_vocabfile(filepath: str)-> dict:
         raise ValueError("All weights are zero")
     return out
 
-def default_vocabfile(level: int=3)-> str:
-    return _package_data_file(os.path.join("vocab", "wordle-level{}.txt".format(level)))
+read_vocabfile = _read_vocabfile  # make open to end user
 
-def default_wordle_vocab(level: int=3)-> dict:
-    vocabfile = default_vocabfile(level)
+def default_vocabfile()-> str:
+    return _package_data_file("wordle-vocab.txt")
+
+def default_wordle_vocab()-> dict:
+    vocabfile = default_vocabfile()
     words = _read_vocabfile(vocabfile)
     return words
 

@@ -22,13 +22,7 @@ class TestUtils(unittest.TestCase):
             self.assertEqual(r, int(c[2]), msg="Judge error for {}".format(c))
 
     def test_default_vocab(self):
-        lens = []
-        for i in range(1, 6):
-            x = default_wordle_vocab(level=i)
-            lens.append(len(x))
-        # all default wordle vocab have the same length
-        #print(lens)
-        self.assertEqual(len(set(lens)), 1, msg="Default vocab length: {}".format(lens))
+        x = default_wordle_vocab()  # okay if this works with no error
         #raise
 
     def test_reader(self):

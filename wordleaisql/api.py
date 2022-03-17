@@ -98,7 +98,7 @@ def interactive(ai: WordleAI, num_suggest: int=10, default_criterion: str="mean_
     print("Thank you!")
 
 
-def play(words: list or dict, vocabname: str="No name"):
+def play(words: list or dict, vocabname: str="No name", answer_weight: bool=True):
     if isinstance(words, list):
         words = {w:1 for w in words}  # assign equal weight
 
@@ -111,14 +111,17 @@ def play(words: list or dict, vocabname: str="No name"):
     print("Type your guess, or 'give up' to finish the game")
 
     # pick an answer randomly
-    vals = []
-    weights = []
-    for w, p in words.items():
-        if p > 0:
-            vals.append(w)
-            weights.append(p)
-    assert len(vals) > 0, "There is no word with positive weight"
-    answer_word = random.choices(vals, weights, k=1)[0]
+    if answer_weight:
+        vals = []
+        weights = []
+        for w, p in words.items():
+            if p > 0:
+                vals.append(w)
+                weights.append(p)
+        assert len(vals) > 0, "There is no word with positive weight"
+        answer_word = random.choices(vals, weights, k=1)[0]
+    else:
+        answer_word = random.choice(words)
     wordlen = len(answer_word)
         
     # define a set version of words for quick check for existence
@@ -147,7 +150,7 @@ def play(words: list or dict, vocabname: str="No name"):
             print("Good job! You win! Answer: '%s'" % answer_word)
             return True
 
-def challenge(ai: WordleAI, max_round: int=20, visible: bool=False,
+def challenge(ai: WordleAI, answer_weight: bool=True, max_round: int=20, visible: bool=False,
               alternate: bool=False, ai_first: bool=False, continue_after_result: bool=False):
     #ai.set_candidates()
     ai.clear_info()
@@ -165,7 +168,7 @@ def challenge(ai: WordleAI, max_round: int=20, visible: bool=False,
     print("")
 
     # pick an answer randomly
-    answer_word = ai.choose_answer_word()
+    answer_word = ai.choose_answer_word(weighted=answer_weight)
     wordlen = len(answer_word)
 
     # define a set version of words for quick check for existence
@@ -309,7 +312,7 @@ def main():
     parser.add_argument("--num_suggest", type=int, default=20, help="Number of suggestion to print")
 
     parser.add_argument("--play", action="store_true", help="Play your own game without AI")
-    parser.add_argument("--answer_difficulty", type=int, default=3, choices=[1,2,3,4,5], help="Answer word difficulty from 1 (basic) to 5 (unlimited)")
+    parser.add_argument("--no_answer_weight", action="store_true", help="Not to use the answer weight in play and challenge mode")
     parser.add_argument("--challenge", action="store_true", help="Challenge AI")
     parser.add_argument("--max_round", type=int, default=20, help="Maximum rounds in challenge mode")
     parser.add_argument("--visible", action="store_true", help="Opponent words are visible in challenge mode")
@@ -337,10 +340,8 @@ def main():
 
     #print(args)
     if args.vocabfile is None:
-        words = default_wordle_vocab(args.answer_difficulty)
-        vocabname = args.vocabname
-        if vocabname is None:
-            vocabname = ("wordle_lev%s" % args.answer_difficulty)
+        words = default_wordle_vocab()
+        vocabname = "wordle" if args.vocabname is None else args.vocabname
         #print(vocabname)
     else:
         words = _read_vocabfile(args.vocabfile)
@@ -351,7 +352,7 @@ def main():
     #print(words)
     if args.play:
         while True:
-            play(words, vocabname=vocabname)
+            play(words, vocabname=vocabname, answer_weight=(not args.no_answer_weight))
             while True:
                 ans = input("One more game? (y/n) > ")
                 ans = ans.strip().lower()[0:1]
@@ -388,7 +389,8 @@ def main():
 
     if args.challenge:
         while True:
-            challenge(ai, max_round=args.max_round, visible=args.visible, alternate=args.alternate,
+            challenge(ai, answer_weight=(not args.no_answer_weight),
+                      max_round=args.max_round, visible=args.visible, alternate=args.alternate,
                       ai_first=args.ai_first, continue_after_result=args.continue_after_result)
             while True:
                 ans = input("One more game? (y/n) > ")
