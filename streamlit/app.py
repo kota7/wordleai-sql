@@ -87,8 +87,9 @@ def main():
         #select_candidate_sample = st.selectbox("Candidate sample size", (250, 500, 1000, 2000), index=1)
         if select_mode == "Challenge":
             ai_strength = st.selectbox("AI level", tuple(range(11)), index=6)
-            visible = st.checkbox("Opponent words are visible", value=True)
-            alternate = st.checkbox("Choose a word in turns", value=True)
+            visible = st.checkbox("Opponent words are visible", value=False)
+            alternate = st.checkbox("Choose a word in turns", value=False)
+            same_answer = st.checkbox("Same answer word", value=False)
             ai_first = st.checkbox("AI plays first", value=True)
             answer_difficulty = st.selectbox(
                 "Answer word difficulty", (1, 2, 3, 4, 5), index=1,
@@ -212,7 +213,8 @@ def main():
 
         _init_state_if_not_exist("history", [])
         _init_state_if_not_exist("historyBuffer", [])  # infomation not seen by the oppornent
-        _init_state_if_not_exist("answerWord", None)   # disables the user's enter button until new game is started
+        _init_state_if_not_exist("answerWord_user", None)  # disables the user's enter button until new game is started
+        _init_state_if_not_exist("answerWord_ai", None)    # disables the user's enter button until new game is started
         _init_state_if_not_exist("userDoneAt", -1)
         _init_state_if_not_exist("aiDoneAt", -1)
         _init_state_if_not_exist("aiNext", None)       # avoid ai to pick word before new game is started
@@ -228,7 +230,7 @@ def main():
             ai_col.markdown(wordle_judge_html(ai_history), unsafe_allow_html=True)
 
         def _ai_info():
-            if visible:
+            if visible and (not same_answer):
                 return [row[:2] for row in st.session_state["history"]]
             else:
                 return [row[:2] for row in st.session_state["history"] if not row[2]]  # ai info only
@@ -301,12 +303,18 @@ def main():
         if st.button("New Game"):
             st.session_state["history"].clear()
             st.session_state["historyBuffer"].clear()
-            st.session_state["answerWord"] = ai.choose_answer_word()
+            if same_answer:
+                w = ai.choose_answer_word()
+                st.session_state["answerWord_user"] = w
+                st.session_state["answerWord_ai"] = w
+            else:
+                st.session_state["answerWord_user"] = ai.choose_answer_word()
+                st.session_state["answerWord_ai"] = ai.choose_answer_word()
             st.session_state["userDoneAt"] = -1
             st.session_state["aiDoneAt"] = -1
             st.session_state["aiNext"] = ai_first
             st.session_state["step"] = 0
-            logger.info("Answer word = '%s'", st.session_state["answerWord"])
+            logger.info("Answer word = '%s', '%s'", st.session_state["answerWord_user"], st.session_state["answerWord_ai"])
 
         # start loop
         logger.info("Session state: %s", st.session_state)
@@ -319,10 +327,16 @@ def main():
         if _gameover():
             winner = _winner()
             result = "You lose..." if winner == "ai" else "You win!" if winner == "user" else "Draw game."
-            st.markdown("""
-            *{}*
-            Answer: '**{}**'
-            """.format(result, st.session_state["answerWord"]))
+            if same_answer:
+                st.markdown("""
+                *{}*
+                Answer: '**{}**'
+                """.format(result, st.session_state["answerWord_user"]))
+            else:
+                st.markdown("""
+                *{}*
+                Answer: '**{}**', '**{}**'
+                """.format(result, st.session_state["answerWord_user"], st.session_state["answerWord_ai"]))
             logger.info("Game is over. Winner = '%s'", _winner())
             _merge_buffer()  # merge action info if any before showing the final result
             _show_history(True)
@@ -343,7 +357,7 @@ def main():
         # workaround to locate the ENTER button to the bottom
         for _ in range(3):
             cols[1].write(" ")
-        enter_button = cols[1].button("Enter", disabled=(st.session_state["answerWord"] is None))
+        enter_button = cols[1].button("Enter", disabled=(st.session_state["answerWord_user"] is None) or (st.session_state["answerWord_ai"] is None))
 
         # catch user's decision
         logger.info("Current step: %s", st.session_state["step"])
@@ -359,9 +373,9 @@ def main():
             if _validate_input():
                 logger.info("User input is valid '%s'", input_word)
                 user_word = input_word
-                user_res = wordle_judge(user_word, st.session_state["answerWord"])
+                user_res = wordle_judge(user_word, st.session_state["answerWord_user"])
                 user_res = str(decode_judgement(user_res)).zfill(wordlen)
-                if user_word == st.session_state["answerWord"]:
+                if user_word == st.session_state["answerWord_user"]:
                     st.session_state["userDoneAt"] = st.session_state["step"]
                 st.session_state["aiNext"] = True
                 if alternate:
@@ -376,9 +390,9 @@ def main():
             logger.info("AI is thinking...")
             with st.spinner("AI is thinking..."):
                 ai_word = _ai_decision()
-            ai_res = wordle_judge(ai_word, st.session_state["answerWord"])
+            ai_res = wordle_judge(ai_word, st.session_state["answerWord_ai"])
             ai_res = str(decode_judgement(ai_res)).zfill(wordlen)
-            if ai_word == st.session_state["answerWord"]:
+            if ai_word == st.session_state["answerWord_ai"]:
                 st.session_state["aiDoneAt"] = st.session_state["step"]
             st.session_state["aiNext"] = False
             if alternate:
