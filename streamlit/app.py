@@ -16,7 +16,7 @@ logger = getLogger(__file__)
 
 
 # constants
-APP_VERSION = "0.0.7"
+APP_VERSION = "0.0.9"
 WORD_PAIR_LIMIT = 500000
 CANDIDATE_SAMPLE_SIZE = 500
 CSS = """
@@ -82,7 +82,7 @@ def main():
     st.markdown("""<style> {} </style>""".format(CSS), unsafe_allow_html=True)
 
     with st.sidebar:
-        select_mode = st.selectbox("", ("Solver", "Challenge"), index=1)
+        select_mode = st.selectbox("", ("Solver", "Challenge"), index=0)
         #select_word_pair_limit = st.selectbox("Word pair limit", (50000, 100000, 500000, 1000000), index=2)
         #select_candidate_sample = st.selectbox("Candidate sample size", (250, 500, 1000, 2000), index=1)
         if select_mode == "Challenge":
